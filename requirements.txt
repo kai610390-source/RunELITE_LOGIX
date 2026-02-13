@@ -2,3 +2,4 @@ streamlit
 groq
 supabase
 pandas
+pillow  # This helps handle the images
