@@ -154,10 +154,11 @@ function apply(route,segments,pref='soft'){
   const pts=route.coordinates,ix=indexSegments(segments,pts[Math.floor(pts.length/2)][0]);
   const meters=Object.fromEntries(TYPES.map(x=>[x,0]));
   const ev={tagged:0,inferred:0,unknown:0};
-  const spans=[];let cur=null,all=0;
+  const spans=[],edgeTypes=[];let cur=null,all=0;
   for(let i=1;i<pts.length;i++){
     const m=dist(pts[i-1],pts[i]);if(m<.001)continue;
     const c=classifyEdge(pts[i-1],pts[i],ix);
+    edgeTypes[i]=c;
     meters[c.surface]+=m;ev[c.evidence]+=m;all+=m;
     if(!cur||cur.surface!==c.surface||cur.evidence!==c.evidence){
       cur={surface:c.surface,evidence:c.evidence,points:[pts[i-1],pts[i]]};spans.push(cur);
@@ -170,7 +171,16 @@ function apply(route,segments,pref='soft'){
   const liked=pref==='soft'?['grass','dirt','track']:pref==='mixed'?
     ['grass','dirt','gravel','paved','track']:[pref];
   const share=liked.reduce((sum,x)=>sum+(pct[x]||0),0);
-  return {...route,spans,surface_percent:pct,
+  const checkpoints=(route.checkpoints||[]).map(cp=>{
+    let closest=1,best=Infinity;
+    for(let i=1;i<pts.length;i++){
+      const delta=dist([cp.lat,cp.lon],pts[i]);
+      if(delta<best){best=delta;closest=i;}
+    }
+    const c=edgeTypes[closest]||{surface:'unknown',evidence:'unknown'};
+    return {...cp,surface:c.surface,evidence:c.evidence==='unknown'?'unverified':c.evidence,name:c.name||cp.name};
+  });
+  return {...route,spans,checkpoints,surface_percent:pct,
     tagged_percent:tagged,inferred_percent:inferred,unknown_percent:unknown,
     match_percent:Math.round(Math.min(100,share)),surface_data_status:'scanned'};
 }
@@ -184,7 +194,8 @@ async function enrich(route,opts={},onProgress){
       const items=await fetchBox(centers[i],opts);
       segments.push(...items);ok++;
     }catch(e){errors.push(e?.name==='AbortError'?'timeout':String(e?.message||e));}
-    if(typeof onProgress==='function')onProgress({done:i+1,total:centers.length,ok});
+    if(typeof onProgress==='function')onProgress({done:i+1,total:centers.length,ok,
+      partial:ok?apply(route,segments,opts.preference||'soft'):null});
   }
   if(!ok)return {...route,surface_data_status:'unavailable',surface_check_note:
     'Surface lookup unavailable. Walking route is still available.'};
