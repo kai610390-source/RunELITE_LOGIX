@@ -20,10 +20,10 @@ code{word-break:break-all;background:#eaf3ea;padding:3px 5px;border-radius:5px}
 <body><main class="wrap">
 <p class="small"><a href="./">← Back to SurfaceStride</a></p>
 <h1>SurfaceStride connection check</h1>
-<p class="lead">This page tests what your browser can access. No Python, downloads, account setup, or location permission needed. All tests use a fixed public sample location in Austin, not your own location.</p>
+<p class="lead">This page checks the services used by the app. The default Walking routes mode uses OSRM or Valhalla; it does not need the older Overpass server. Tests use a fixed public sample location in Austin, never your own location.</p>
 <button id="start">Run checks</button><button id="copy" class="secondary">Copy results</button>
 <div id="checks"></div>
-<p class="small">A successful test means a service responded; it does not guarantee route quality. Aerial-image tests also check that your browser can read image pixels, which the experimental trail scanner needs. If the whole website does not open, go to <a href="https://github.com/kai610390-source/RunELITE_LOGIX/settings/pages">GitHub Pages settings</a> and ensure source = Deploy from a branch, branch = gh-pages, folder = / (root).</p>
+<p class="small">A successful walking-router test means the default mode can retrieve pedestrian routes. Gravel surfaces and tiny trails are not verified by those routers. The optional Surface Explorer can still fail if its Overpass provider is unavailable. Aerial-image tests also check that the experimental Satellite Scout can read pixels. If the whole website does not open, go to <a href="https://github.com/kai610390-source/RunELITE_LOGIX/settings/pages">GitHub Pages settings</a> and ensure source = Deploy from a branch, branch = gh-pages, folder = / (root).</p>
 </main>
 <script>
 'use strict';
@@ -52,13 +52,6 @@ const diagnostics=[
  const data=await r.json();
  if(!data.trip?.legs?.length)throw Error(data.error||'No pedestrian route');
  return 'Pedestrian backup returned a route.';
-}],
-['OpenStreetMap route data','Checks Overpass, which supplies paths and surface tags.',async()=>{
- const params=new URLSearchParams({data:'[out:json][timeout:12];way["highway"="footway"](around:120,30.2849,-97.734);out body 1;'});
- let last=null;for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){
-   try{const r=await fetch(host,{method:'POST',body:params});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!Array.isArray(j.elements))throw Error('Invalid OSM response');return 'OSM way data returned.';}
-   catch(e){last=e;}
- }throw Error('Both route servers failed: '+(last?.message||last));
 }],
 ['Direct OpenStreetMap API','Tests the fallback route source when Overpass is unresponsive.',async()=>{
  const r=await fetch('https://api.openstreetmap.org/api/0.6/map?bbox=-97.736,30.283,-97.732,30.287',{headers:{Accept:'application/json'}});
