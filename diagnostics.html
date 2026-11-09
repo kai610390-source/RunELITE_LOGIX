@@ -20,7 +20,7 @@ code{word-break:break-all;background:#eaf3ea;padding:3px 5px;border-radius:5px}
 <body><main class="wrap">
 <p class="small"><a href="./">← Back to SurfaceStride</a></p>
 <h1>SurfaceStride connection check</h1>
-<p class="lead">This page checks the services used by the app. The default Walking routes mode uses OSRM or Valhalla; it does not need the older Overpass server. Tests use a fixed public sample location in Austin, never your own location.</p>
+<p class="lead">This page checks both the published Surface V2 app and its map services. The default walking mode uses OSRM or Valhalla; surface tagging uses the direct OpenStreetMap API. Tests use a fixed public sample location in Austin, never your own location.</p>
 <button id="start">Run checks</button><button id="copy" class="secondary">Copy results</button>
 <div id="checks"></div>
 <p class="small">A successful walking-router test means the default mode can retrieve pedestrian routes. Gravel surfaces and tiny trails are not verified by those routers. The optional Surface Explorer can still fail if its Overpass provider is unavailable. Aerial-image tests also check that the experimental Satellite Scout can read pixels. If the whole website does not open, go to <a href="https://github.com/kai610390-source/RunELITE_LOGIX/settings/pages">GitHub Pages settings</a> and ensure source = Deploy from a branch, branch = gh-pages, folder = / (root).</p>
@@ -29,6 +29,18 @@ code{word-break:break-all;background:#eaf3ea;padding:3px 5px;border-radius:5px}
 'use strict';
 const root=document.getElementById('checks'),item=[];
 const diagnostics=[
+['Published Surface V2 app','Checks whether GitHub Pages is actually serving the updated satellite-only app and surface scan.',async()=>{
+ const url='./?check='+Date.now();
+ const r=await fetch(url,{cache:'no-store'});
+ if(!r.ok)throw Error('Site returned HTTP '+r.status);
+ const html=await r.text();
+ if(html.includes('Walking route only — surface type is unverified.'))throw Error('Older HTML is still being served. Try the cache-busting Surface V2 link.');
+ if(!html.includes('SURFACESTRIDE_SURFACE_V2_BUILD_20261109'))
+   throw Error('The published HTML is not Surface V2. Check GitHub Pages deployment branch/status.');
+ if(!html.includes('scanMappedSurfaces(result,options)'))
+   throw Error('Surface V2 markup loaded but surface scanner is missing.');
+ return 'Surface V2 HTML is published, with the surface scanner included.';
+}],
 ['Site script','Checks whether the Satellite Scout code is actually published.',async()=>{
  const r=await fetch('./scout.js?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);
  const t=await r.text();if(!t.includes('SurfaceStrideScout'))throw Error('Invalid script response');return 'Scout script available ('+t.length+' characters).';
