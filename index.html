@@ -167,7 +167,7 @@
     </div>
   </div>
 
-  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p><strong>Connect small gravel paths</strong> searches for short gravel-tagged ways, gravel-like tracktype=grade2 ways, and informal footpaths, then uses connected mapped roads and trails to link them. Tracktype inference isn't a visual surface confirmation. This does not detect paths missing entirely from OpenStreetMap, and it does not invent shortcuts across unverified land. Access-restricted paths are excluded unless pedestrian access is explicitly permitted.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
+  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p><strong>Experimental Satellite Scout</strong> inspects a small area of USGS/USDA NAIP public-domain aerial imagery to propose narrow, pale linear features. They could be paths, farm tracks, drainage, roofs, or other structures. Imagery cannot prove gravel surface, safe access, or an open path. Suggestions must be user-reviewed and can join mapped routes only when endpoints are within 15 meters of an existing walkable route node. Manual tracing is available when aerial scanning fails.</p><p><strong>Connect small gravel paths</strong> searches for short gravel-tagged ways, gravel-like tracktype=grade2 ways, and informal footpaths, then uses connected mapped roads and trails to link them. Tracktype inference isn't a visual surface confirmation. This does not detect paths missing entirely from OpenStreetMap, and it does not invent shortcuts across unverified land. Access-restricted paths are excluded unless pedestrian access is explicitly permitted.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
 /* Terrain elevation from the Open-Meteo public 90 m Copernicus DEM.
@@ -320,6 +320,7 @@
 })();
 
 </script>
+<script src="./scout.js"></script>
   <script>
 /* SurfaceStride browser-only engine. OpenStreetMap tags, not Google image analysis. */
 (() => {
@@ -344,6 +345,7 @@
   }
   function dest(a,bearing,m){return {lat:a.lat + m*Math.cos(rad(bearing))/111195,lon:a.lon + m*Math.sin(rad(bearing))/(111195*Math.max(.15,Math.cos(rad(a.lat))))};}
   function surface(tags){
+    if(tags.surface_stride_candidate==='yes')return {surface:'gravel',evidence:'inferred',raw_surface:'reviewed aerial candidate — surface unverified'};
     const raw=(tags.surface||'').trim().toLowerCase();
     if(raw)return {surface:SURFACE[raw]||'unknown',evidence:SURFACE[raw]?'tagged':'unclassified',raw_surface:raw};
     // Track quality provides a useful but unverified clue about small unmapped-surface tracks.
@@ -518,6 +520,54 @@
     }
     items.sort((a,b)=>a[0]-b[0]);return items.slice(0,1600).map(x=>x[1]);
   }
+  // Overlay user-reviewed suggestions on a copy of the mapped network. Never infer
+  // a road connection across large unmapped gaps: endpoint snaps are capped at 15 m.
+  // Only possible paths explicitly reviewed by the user are eligible.
+  function attachReviewedPaths(original,confirmed){
+    if(!Array.isArray(confirmed)||!confirmed.length)return original;
+    const net={nodes:new Map(original.nodes),adj:new Map(),ways:original.ways.slice(),reviewedCount:0};
+    for(const [id,edges] of original.adj)net.adj.set(id,edges.slice());
+    let next=-2000000000,wayid=-1000000000;
+    const eligible=Array.from(original.adj.keys());
+    const snap=(point)=>{
+      let best=null,meters=15.0;
+      // Search walkable graph nodes, not all original OSM points or off-limits ways.
+      for(const id of eligible){
+        const p=original.nodes.get(id),d=distance(p,point);
+        if(d<meters){best=id;meters=d;}
+      }
+      return best;
+    };
+    for(const candidate of confirmed.slice(0,80)){
+      const coords=candidate?.points;
+      if(!Array.isArray(coords)||coords.length<2||coords.length>150||
+         !coords.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Math.abs(p.lat)<=85&&Math.abs(p.lon)<=180))continue;
+      const first=snap(coords[0]),last=snap(coords[coords.length-1]);
+      if(first===null&&last===null)continue;
+      let rawLength=0;
+      for(let i=1;i<coords.length;i++)rawLength+=distance(coords[i-1],coords[i]);
+      if(rawLength<10||rawLength>2000)continue;
+      if(first!==null&&last!==null&&first===last)continue;
+      const nodes=coords.map((c,i)=>{
+        if(i===0&&first!==null)return first;
+        if(i===coords.length-1&&last!==null)return last;
+        const id=next--;net.nodes.set(id,{lat:c.lat,lon:c.lon});net.adj.set(id,[]);return id;
+      });
+      const id=wayid--,tags={highway:'path',surface_stride_candidate:'yes',name:'User-reviewed possible path'};
+      let built=0;
+      for(let i=1;i<nodes.length;i++){
+        const a=nodes[i-1],b=nodes[i],p=net.nodes.get(a),q=net.nodes.get(b);
+        const length=distance(p,q);
+        if(!Number.isFinite(length)||length<.01||length>900)continue;
+        const e={surface:'gravel',evidence:'inferred',raw_surface:'aerial candidate; surface unverified',
+          length,highway:'path',name:'User-reviewed possible path',way_id:id,informal:true};
+        const key=edgeKey(a,b);
+        net.adj.get(a).push({to:b,e,key});net.adj.get(b).push({to:a,e,key});built++;
+      }
+      if(built){net.ways.push({type:'way',id,nodes,tags});net.reviewedCount++;}
+    }
+    return net;
+  }
   async function run(net,opts){
     const {start,offset,nodeIds}=choose(net,opts.lat,opts.lon),origin=net.nodes.get(start);
     const target=opts.miles*MILE,anchor=target/(2*Math.PI),candidates=[],fingerprints=new Set();
@@ -582,7 +632,8 @@
       match_percent:Math.min(100,Math.round(liked.reduce((n,k)=>n+(c.item.surface_percent[k]||0),0)))})),
       network_nodes:nodeIds.length,start:origin,requested_start:{lat:opts.lat,lon:opts.lon},
       warnings:candidates.length?[]:['No matching routes found. Try a shorter distance or explore another area.'],
-      surface_ways:overlay(net,opts.lat,opts.lon),source:'OpenStreetMap / Overpass (browser mode)',
+      surface_ways:overlay(net,opts.lat,opts.lon),reviewed_connected:net.reviewedCount||0,
+      source:'OpenStreetMap / Overpass + optional reviewed aerial candidates',
       surface_note:'Surface data may be unknown or inferred; check in person.'};
   }
   function radius(miles){return Math.max(1650,Math.min(4700,miles*MILE*.265))+Math.max(0,miles-18)*500;}
@@ -621,7 +672,8 @@
   window.SurfaceStrideAPI={
     search,
     async plan(opts){if(opts.miles<1||opts.miles>25)throw new Error('Choose a run from 1 to 25 miles.');
-      return run(await fetchNetwork(opts),opts);},
+      const base=await fetchNetwork(opts);
+      return run(attachReviewedPaths(base,opts.extra_paths),opts);},
     // Offline test interface, not needed by the app itself.
     _test:{parse,run,query,radius}
   };
@@ -680,7 +732,7 @@
       maxZoom:19,attribution:'Tiles &copy; Esri and imagery providers'
     });
     L.control.zoom({position:'topright'}).addTo(map);
-    map.on('click',e=>setArea(e.latlng.lat,e.latlng.lng));
+    map.on('click',e=>{if(!window.SurfaceStrideScout?.isTracing)setArea(e.latlng.lat,e.latlng.lng);});
   }
   function setLoading(isLoading){
     state.loading=isLoading;
@@ -726,7 +778,8 @@
     if(map){const center=map.getCenter();state.area={lat:center.lat,lon:center.lng};}
     const options={lat:state.area.lat,lon:state.area.lon,miles:state.miles,
       preference:state.preference,mode:state.mode,goal_pct:state.goal,
-      avoid_traffic:$('avoidTraffic').checked,favor_tagged:$('favorTagged').checked,terrain:state.terrain,link_gravel:$('linkGravel').checked&&state.preference==='gravel'};
+      avoid_traffic:$('avoidTraffic').checked,favor_tagged:$('favorTagged').checked,terrain:state.terrain,link_gravel:$('linkGravel').checked&&state.preference==='gravel',
+      extra_paths:window.SurfaceStrideScout?.getPaths?.()||[]};
     try{
       const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),115000);
       let result;
@@ -750,7 +803,9 @@
       }
       renderRouteCards();selectRoute(0);
       const elevated=result.routes.some(r=>r.elevation_status==='available');
-      toast(elevated?`Found ${result.routes.length} options with estimated elevation. Check surfaces before running.`:
+      if(options.extra_paths.length>0&&result.reviewed_connected===0){
+        toast('No reviewed aerial path endpoints connect closely to the mapped network here. Move/trace endpoints nearer mapped paths.',8500);
+      }else toast(elevated?`Found ${result.routes.length} options with estimated elevation. Check surfaces before running.`:
         'Routes found. Elevation is unavailable right now; surface and distance routing still work.',5700);
     }catch(err){
       const message=err.name==='AbortError'?'The surface-data request took too long. Try a shorter route or retry.':String(err.message||err);
@@ -969,7 +1024,7 @@
     $('kmlButton').addEventListener('click',()=>exportRoute('kml'));
     $('infoButton').addEventListener('click',()=>$('infoDialog').showModal());
   }
-  initMap();wireControls();
+  initMap();wireControls();if(map&&window.SurfaceStrideScout)window.SurfaceStrideScout.init({map});
 })();
 
 </script>
