@@ -18,13 +18,36 @@ function points(opts,scale=1){
     destination(start,245+shift,r),start];
 }
 function asCoords(p){return p.lon.toFixed(6)+','+p.lat.toFixed(6)}
+function osrmDirections(steps){
+  const turns=[];
+  for(const step of steps){
+    const name=(step.name||step.ref||'').trim();
+    const type=(step.maneuver?.type||'').toLowerCase(),modifier=(step.maneuver?.modifier||'').replace(/_/g,' ');
+    if(type==='arrive'||type==='depart'){
+      if(type==='depart'&&name)turns.push({name,instruction:'Start on '+name,
+        lat:step.maneuver?.location?.[1],lon:step.maneuver?.location?.[0],distance_m:step.distance||0});
+      continue;
+    }
+    let instruction;
+    if(type==='roundabout'||type==='rotary')instruction='Enter roundabout'+(name?' toward '+name:'');
+    else if(type==='new name'||type==='continue')instruction='Continue'+(name?' on '+name:'');
+    else if(type==='merge')instruction='Merge'+(name?' onto '+name:'');
+    else if(type==='fork')instruction='Keep '+(modifier||'on the path')+(name?' toward '+name:'');
+    else instruction=(modifier?'Turn '+modifier:'Turn')+(name?' onto '+name:' onto the next path');
+    turns.push({name:name||'Unnamed path',instruction,
+      lat:step.maneuver?.location?.[1],lon:step.maneuver?.location?.[0],distance_m:step.distance||0});
+  }
+  return turns.filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)).slice(0,120);
+}
 function fromOSRM(body,opts){
   if(body?.code!=='Ok'||!body.routes?.length)throw Error(body?.message||body?.code||'No walking route returned');
   const r=body.routes[0],coords=r.geometry?.coordinates;
   if(!Array.isArray(coords)||coords.length<2||!Number.isFinite(r.distance))throw Error('Invalid walking route geometry');
   const points=coords.map(p=>[Number(p[1]),Number(p[0])]);
   if(opts.mode==='out-and-back')points.push(...points.slice(0,-1).reverse());
-  return {distance_m:opts.mode==='out-and-back'?r.distance*2:r.distance,coordinates:points,provider:'OSRM pedestrian'};
+  const directions=osrmDirections((r.legs||[]).flatMap(leg=>leg.steps||[]));
+  if(opts.mode==='out-and-back')directions.push({name:'Return',instruction:'Retrace the same route to the start',lat:points[Math.floor(points.length/2)][0],lon:points[Math.floor(points.length/2)][1],distance_m:0});
+  return {distance_m:opts.mode==='out-and-back'?r.distance*2:r.distance,coordinates:points,directions,provider:'OSRM pedestrian'};
 }
 function polyline6(data){
   let lat=0,lon=0,i=0,output=[];
@@ -40,16 +63,26 @@ function polyline6(data){
 }
 function fromValhalla(data,opts){
   if(!data?.trip?.legs?.length)throw Error(data?.error||'No walking path returned');
-  const coords=[];
+  const coords=[],directions=[];
   for(const leg of data.trip.legs){
     const part=polyline6(leg.shape||'');
+    for(const m of leg.maneuvers||[]){
+      const name=(m.street_names||[]).filter(Boolean).join(' / ');
+      const p=part[Math.max(0,Math.min(part.length-1,m.begin_shape_index||0))];
+      if(p)directions.push({name:name||'Unnamed path',instruction:m.instruction||'Continue on '+(name||'the path'),
+        lat:p[0],lon:p[1],distance_m:(Number(m.length)||0)*1000});
+    }
     if(coords.length&&part.length)part.shift();
     coords.push(...part);
   }
   if(coords.length<2)throw Error('Empty walking route');
-  if(opts.mode==='out-and-back')coords.push(...coords.slice(0,-1).reverse());
+  if(opts.mode==='out-and-back'){
+    coords.push(...coords.slice(0,-1).reverse());
+    const p=coords[Math.floor(coords.length/2)];
+    directions.push({name:'Return',instruction:'Retrace the same route to the start',lat:p[0],lon:p[1],distance_m:0});
+  }
   const meters=Number(data.trip.summary?.length)*1000*(opts.mode==='out-and-back'?2:1);
-  return {coordinates:coords,distance_m:meters,provider:'Valhalla pedestrian'};
+  return {coordinates:coords,distance_m:meters,directions,provider:'Valhalla pedestrian'};
 }
 function distance(a,b){
   const dlat=(a[0]-b[0])*DEG,dlon=(a[1]-b[1])*DEG;
@@ -63,6 +96,8 @@ function toRoute(raw,opts){
   let m=Number(raw.distance_m);
   // Prefer geometry length if provider distance is absent or inconsistent.
   if(!Number.isFinite(m)||m<30||Math.abs(m-sum)/Math.max(m,sum)>.25)m=sum;
+  const directions=(raw.directions||[]).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
+  const namedRoads=[...new Set(directions.map(x=>x.name).filter(x=>x&&x!=='Unnamed path'&&x!=='Return'))].slice(0,35);
   const cps=[.16,.34,.52,.7,.87].map(f=>{
     const at=m*f;let idx=1;
     while(idx<running.length-1&&running[idx]/sum*m<at)idx++;
@@ -75,7 +110,7 @@ function toRoute(raw,opts){
     surface_percent:{grass:0,dirt:0,gravel:0,paved:0,track:0,unknown:100},
     tagged_percent:0,inferred_percent:0,unknown_percent:100,road_percent:0,
     gravel_sections:0,gravel_miles:0,reviewed_sections:0,reviewed_miles:0,match_percent:0,
-    route_source:raw.provider};
+    route_source:raw.provider,road_names:namedRoads,directions};
 }
 function withTimeout(url,config={},limit=12500){
   const c=new AbortController(),t=setTimeout(()=>c.abort(),limit);
@@ -86,7 +121,7 @@ function withTimeout(url,config={},limit=12500){
 }
 async function osrmRoute(opts,scale){
   const coords=points(opts,scale).map(asCoords).join(';');
-  const url=OSRM+coords+'?overview=full&geometries=geojson&steps=false&continue_straight=false';
+  const url=OSRM+coords+'?overview=full&geometries=geojson&steps=true&continue_straight=false';
   return fromOSRM(await withTimeout(url,{},13000),opts);
 }
 async function valhallaRoute(opts,scale){
@@ -130,5 +165,5 @@ async function plan(opts){
   cache.set(key,{time:Date.now(),result});if(cache.size>10)cache.delete(cache.keys().next().value);
   return result;
 }
-window.SurfaceStrideWalking={plan,_test:{points,fromOSRM,polyline6,fromValhalla,toRoute,destination}};
+window.SurfaceStrideWalking={plan,_test:{points,fromOSRM,osrmDirections,polyline6,fromValhalla,toRoute,destination}};
 })();
