@@ -464,6 +464,28 @@ function saveRoute(){
  if(!savedPut(entries)){message('Could not save route to this browser. Try copying the link.');return;}
  renderSaved();message('Route saved in this browser.');
 }
+async function importGpx(file){
+ if(!file)return;
+ try{
+  if(file.size>6000000)throw Error('GPX file is too large.');
+  const text=await file.text(),xml=new DOMParser().parseFromString(text,'application/xml');
+  if(xml.getElementsByTagName('parsererror').length)throw Error('Invalid GPX file.');
+  let nodes=Array.from(xml.getElementsByTagNameNS('*','trkpt'));
+  if(!nodes.length)nodes=Array.from(xml.getElementsByTagNameNS('*','rtept'));
+  if(!nodes.length)nodes=Array.from(xml.getElementsByTagName('trkpt'));
+  if(nodes.length<2)throw Error('GPX does not contain a route track.');
+  const coords=nodes.map(node=>[Number(node.getAttribute('lat')),Number(node.getAttribute('lon'))])
+    .filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])&&Math.abs(p[0])<=85&&Math.abs(p[1])<=180);
+  if(coords.length<2)throw Error('Not enough valid route coordinates.');
+  const points=coords.length>12000?Array.from({length:12000},(_,i)=>coords[Math.round(i*(coords.length-1)/11999)]):coords;
+  const route=E.routeObject({coordinates:points,provider:'Imported GPX'},'point-to-point','Imported · '+file.name.replace(/\.gpx$/i,''));
+  st.waypoints=[];setMode('auto');st.markerLayer.clearLayers();
+  showRoute(route);switchTab('build');
+  status('GPX route imported. Export it to COROS or switch to Draw to edit its waypoints.');
+  message('GPX track imported successfully.');
+ }catch(err){message('Import failed: '+(err?.message||err),7000);}
+ finally{$('importGpxFile').value='';}
+}
 function renderSaved(){
  const items=savedGet(),box=$('savedList');box.replaceChildren();
  if(!items.length){const p=document.createElement('p');p.className='hint';p.textContent='No routes saved yet. Generate one and click Save.';box.append(p);return;}
@@ -520,6 +542,14 @@ function wires(){
   $('distanceLabel').textContent=st.miles.toFixed(1);$('kmLabel').textContent=(st.miles*KM).toFixed(1)+' km';
  }));
  $('quietToggle').addEventListener('change',e=>{st.quiet=e.target.checked;});
+ $('straightToggle').addEventListener('change',e=>{
+  st.straight=e.target.checked;
+  if(st.mode==='draw'&&st.waypoints.length>=2)deferManual();
+  status(st.straight?'Manual straight-line mode: geometry will NOT follow mapped paths. Verify land access before running.':
+    'Snap mode: route lines follow the mapped pedestrian network.');
+ });
+ $('importGpxBtn').addEventListener('click',()=>$('importGpxFile').click());
+ $('importGpxFile').addEventListener('change',e=>importGpx(e.target.files?.[0]));
  $('autoMode').addEventListener('click',()=>setMode('auto'));
  $('drawMode').addEventListener('click',()=>setMode('draw',true));
  $('generateBtn').addEventListener('click',()=>st.mode==='draw'?manualBuild():autoGenerate());
