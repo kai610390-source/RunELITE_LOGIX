@@ -53,7 +53,7 @@ function link(route,href){
     Array.from({length:max},(_,i)=>coords[Math.round(i*(coords.length-1)/(max-1))]):coords;
   const u=new URL(href||location.href);u.search='';u.hash='';
   const q=new URLSearchParams();
-  q.set('r',encode(short));q.set('m',route.mode==='out-and-back'?'out-and-back':'loop');
+  q.set('r',encode(short));q.set('m',route.mode==='out-and-back'?'out-and-back':route.mode==='point-to-point'?'point-to-point':'loop');
   if(route.road_names?.length)q.set('n',route.road_names.slice(0,24).join(' | ').slice(0,600));
   u.hash=q.toString();
   return u.toString();
@@ -70,7 +70,8 @@ function restore(hash){
       name:'Surface inspection point',at_mile:Number((total*f/MI).toFixed(2))};
   });
   const names=(query.get('n')||'').split(' | ').filter(Boolean).slice(0,24);
-  const route={id:1,title:'Shared running route',mode:query.get('m')==='out-and-back'?'out-and-back':'loop',
+  const mode=['out-and-back','point-to-point'].includes(query.get('m'))?query.get('m'):'loop';
+  const route={id:1,title:'Shared running route',mode,
     distance_m:Math.round(total),distance_miles:Number((total/MI).toFixed(2)),distance_to_start_m:0,
     coordinates,spans:[{surface:'unknown',points:coordinates}],checkpoints,
     road_names:names,directions:[],elevation_status:'unavailable',

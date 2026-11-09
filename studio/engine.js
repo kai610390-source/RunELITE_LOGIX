@@ -127,8 +127,10 @@ function parseNative(text){
  return window.SurfaceStrideSurfaceTags._test.parseElements(data);
 }
 async function nearbyGravel(c){
+ const lon=Number.isFinite(c.lon)?c.lon:c.lng;
+ if(!Number.isFinite(lon)||!Number.isFinite(c.lat))throw Error('Map location unavailable');
  const meters=470,dy=meters/111195,dx=meters/(111195*Math.max(.15,Math.cos(c.lat*RAD)));
- const box=[c.lon-dx,c.lat-dy,c.lon+dx,c.lat+dy].map(n=>n.toFixed(6)).join(',');
+ const box=[lon-dx,c.lat-dy,lon+dx,c.lat+dy].map(n=>n.toFixed(6)).join(',');
  if(overlayCache.has(box))return overlayCache.get(box);
  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),17000);
  try{
@@ -175,8 +177,10 @@ async function elevation(route){
  }finally{clearTimeout(timer);}
 }
 async function weather(center){
+ const lon=Number.isFinite(center.lon)?center.lon:center.lng;
+ if(!Number.isFinite(lon)||!Number.isFinite(center.lat))throw Error('Map location unavailable');
  const url='https://api.open-meteo.com/v1/forecast?latitude='+center.lat.toFixed(5)+
-  '&longitude='+center.lon.toFixed(5)+'&current=temperature_2m,wind_speed_10m,wind_direction_10m,relative_humidity_2m'+
+  '&longitude='+lon.toFixed(5)+'&current=temperature_2m,wind_speed_10m,wind_direction_10m,relative_humidity_2m'+
   '&temperature_unit=fahrenheit&wind_speed_unit=mph';
  const body=await withTimeout(url,{},14000);
  if(!body.current)throw Error('Weather unavailable');

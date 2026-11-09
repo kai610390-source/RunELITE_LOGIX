@@ -285,8 +285,10 @@ function centerForAuto(){
  return L.latLng(sw.lat+(ne.lat-sw.lat)*jitter,sw.lng+(ne.lng-sw.lng)*jitter2);
 }
 function offset(p,bearing,meters){
+ const lon=Number.isFinite(p.lng)?p.lng:p.lon;
+ const nextLon=lon+meters*Math.sin(bearing*Math.PI/180)/(111195*Math.max(.15,Math.cos(p.lat*Math.PI/180)));
  return {lat:p.lat+meters*Math.cos(bearing*Math.PI/180)/111195,
-  lon:p.lng+meters*Math.sin(bearing*Math.PI/180)/(111195*Math.max(.15,Math.cos(p.lat*Math.PI/180)))};
+  lon:nextLon,lng:nextLon};
 }
 async function autoGenerate(){
  if(st.working||!st.map)return;
