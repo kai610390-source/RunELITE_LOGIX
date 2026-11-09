@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f8f5" />
+  <title>SurfaceStride — Run on your terms</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://basemaps.cartocdn.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+:root{--ink:#183b32;--green:#175c43;--mint:#bff2d4;--lime:#c6efb6;--border:#e3e9e2;--muted:#83918b;--paper:#f8faf6;--white:#fff;--font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:var(--font);color:var(--ink);background:#f3f6f2}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid #87d9a5;outline-offset:2px}button:disabled{cursor:wait;opacity:.7}a{color:var(--green)}.app-shell{height:100vh;min-height:620px;display:flex;flex-direction:column;overflow:hidden}
+.app-header{height:78px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid #e4e9e3;padding:0 32px;z-index:1001;box-shadow:0 1px 10px #14342204}.brand{display:flex;align-items:center;gap:12px}.brand-mark{width:42px;height:42px;border-radius:14px;background:#165941;display:grid;place-items:center}.brand-mark svg{width:36px;height:36px}.brand-name{font-size:23px;font-weight:800;letter-spacing:-1.25px;line-height:1}.brand-name span:first-child{font-weight:500}.brand-dot{color:#93bd9a}.brand-tagline{font-size:9px;letter-spacing:1.7px;font-weight:750;margin-top:5px;color:#85988c}.header-actions{display:flex;align-items:center;gap:22px;font-size:12px;color:#6d8578}.source-chip{display:flex;align-items:center;gap:8px;font-weight:650}.live-dot{height:7px;width:7px;background:#51b878;border-radius:50%;box-shadow:0 0 0 4px #e7f7ea}.icon-text-button{background:transparent;border:0;color:#607b6d;font-weight:650;display:flex;align-items:center;gap:7px}.question-icon{display:grid;place-items:center;border:1.5px solid #a6bbae;border-radius:50%;width:19px;height:19px;font-size:12px}
+.workspace{flex:1;display:flex;min-height:0}.sidebar{width:392px;flex-shrink:0;overflow-y:auto;overflow-x:hidden;background:var(--paper);border-right:1px solid #e2e7e1;padding:28px 27px 25px;scrollbar-width:thin;scrollbar-color:#d0dbd3 transparent}.intro{margin-bottom:25px}.eyebrow{font-size:10px;letter-spacing:2px;font-weight:850;color:#54846d;display:flex;align-items:center;gap:9px}.eyebrow .line{width:16px;height:1px;background:#76ad87}.intro h1{font-family:Georgia,"Times New Roman",serif;font-size:52px;letter-spacing:-2.5px;line-height:.98;font-weight:500;margin:14px 0 15px;color:#183e31}.intro h1 em{color:#57a773;font-weight:400}.intro p{max-width:290px;font-size:13px;color:#75847b;line-height:1.6;margin:0}.intro p strong{color:#3e6451}.section{border-top:1px solid #e0e8df;padding:20px 0 18px}.section-heading{display:flex;align-items:center;gap:10px;margin-bottom:17px}.section-heading h2{margin:0;font-size:13px;font-weight:750;letter-spacing:-.2px}.step{color:#75a88b;font-size:10px;font-weight:850;letter-spacing:1px}.search-box{background:#fff;display:flex;align-items:center;gap:10px;border:1px solid #dbe6da;border-radius:12px;height:46px;padding:0 12px;box-shadow:0 2px 5px #2c5b3110}.search-box svg{flex-shrink:0;color:#77a189}.search-box input{border:0;outline:0;min-width:0;width:100%;font-size:12px;font-weight:570;color:#305140}.search-box input::placeholder{color:#a3b0a6}.search-box button{width:27px;height:27px;border:0;border-radius:8px;color:#397f59;background:#eef6ed;font-weight:800}.loc-hint{display:flex;align-items:center;gap:7px;margin-top:11px;font-size:10px;color:#91a097}.tiny-action{border:0;background:transparent;color:#4b9672;font-weight:700;padding:0}.crosshair{font-size:15px;vertical-align:-1px}.divider-dot{font-weight:900;color:#bdc8bc}.start-coords{font-size:9px;color:#99a99c;letter-spacing:.7px;margin-top:12px}.search-results{position:relative;z-index:1005;margin:6px 0 0;border:1px solid #dbe4dc;border-radius:11px;background:white;max-height:215px;overflow-y:auto;box-shadow:0 8px 25px #183b3215}.search-result{display:block;width:100%;border:0;background:white;text-align:left;padding:11px 12px;font-size:11px;color:#315e48;line-height:1.4;border-bottom:1px solid #eff1ec}.search-result:hover{background:#f1f8f3}.search-result:last-child{border-bottom:0}
+.surface-picker{display:grid;grid-template-columns:1fr 1fr;gap:8px}.surface-option{display:flex;align-items:center;text-align:left;gap:9px;min-height:65px;border:1px solid #e0e7df;border-radius:12px;padding:9px;background:#fff;color:#395a49;transition:border .15s,box-shadow .15s,background .15s}.surface-option:hover{border-color:#91baa0}.surface-option.is-selected{background:#eaf5e9;border:1.5px solid #70ad83;box-shadow:inset 0 0 0 1px #70ad831c}.surface-option>span:last-child{display:flex;flex-direction:column;gap:3px;min-width:0}.surface-option strong{font-size:11px;font-weight:800;white-space:nowrap}.surface-option small{font-size:9px;color:#8b9b8d;white-space:nowrap}.surface-illustration{flex-shrink:0;position:relative;width:39px;height:38px;border-radius:9px;overflow:hidden;display:block}.surface-illustration.soft{background:#d4ecd0}.surface-illustration.soft i{position:absolute;width:4px;height:14px;bottom:8px;border-radius:50% 50% 0 0;border-left:2px solid #3b9d66;transform:rotate(18deg)}.soft i:nth-child(1){left:12px}.soft i:nth-child(2){left:20px;bottom:11px;transform:rotate(-22deg)}.soft i:nth-child(3){left:28px;bottom:7px}.surface-illustration.gravel{background:#f2e8d6}.gravel i{position:absolute;width:7px;height:5px;border-radius:50%;background:#c69c66;left:8px;top:11px;transform:rotate(26deg)}.gravel i:nth-child(2){left:23px;top:19px;background:#b78f69}.gravel i:nth-child(3){left:15px;top:28px;background:#d6af7e}.surface-illustration.paved{background:#e5eaeb}.paved i{position:absolute;height:1px;background:#a7b1b4;top:15px;width:36px;left:2px;transform:rotate(-25deg)}.paved i:nth-child(2){top:26px;transform:rotate(18deg)}.surface-illustration.mixed{background:linear-gradient(135deg,#d9e7d0 0 33%,#efdcc6 33% 66%,#d1d9d8 66%)}.mixed i{position:absolute;width:8px;height:8px;top:14px;left:17px;border-radius:50%;background:#91aa83}.mixed i:nth-child(2){width:4px;height:4px;top:6px;left:28px;background:#bd946d}.mixed i:nth-child(3){width:6px;height:6px;top:25px;left:7px;background:#9caaa6}.setting-line{display:flex;align-items:center;justify-content:space-between;font-size:11px}.surface-goal{margin-top:18px}.setting-title{font-weight:700;color:#52725b}.surface-goal strong{font-size:14px;color:#286443}.micro-info{display:inline-grid;place-items:center;border:1px solid #b8c9b7;color:#89a18e;width:13px;height:13px;font-size:9px;border-radius:50%;margin-left:4px}
+.range{width:100%;accent-color:#3e9566;cursor:pointer;height:18px;margin:10px 0 2px}.range-ticks{display:flex;justify-content:space-between;font-size:10px;color:#9eaaa0}.distance-number{display:flex;align-items:baseline;gap:8px}.distance-number strong{font-size:39px;letter-spacing:-2.8px;line-height:1;font-weight:800;color:#21583d}.distance-number span{font-weight:850;font-size:10px;letter-spacing:1.2px;color:#608872}.distance-number small{font-size:12px;color:#9aaa9e;margin-left:auto}.distance-section>.range{margin-top:15px}.mode-options{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:20px 0 17px}.mode-button{height:42px;border:1px solid #dde5db;background:#fff;border-radius:10px;color:#708578;font-size:11px;font-weight:750}.mode-button.is-selected{color:#2c704b;background:#eaf5e9;border-color:#87ba93}.mode-graphic{font-size:20px;vertical-align:-2px;margin-right:5px;font-weight:300}.toggle-line{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid #e7ebe5;position:relative;cursor:pointer}.toggle-line>span:first-child{display:flex;flex-direction:column;gap:3px}.toggle-line strong{font-size:11px;color:#3d5848}.toggle-line small{font-size:10px;color:#a0aba1}.toggle-line input{position:absolute;opacity:0;right:0}.switch{width:33px;height:20px;border-radius:20px;background:#cfd9cf;position:relative;transition:background .2s;flex-shrink:0}.switch:after{content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:100%;background:white;box-shadow:0 1px 3px #0002;transition:transform .2s}.toggle-line input:checked+.switch{background:#37986b}.toggle-line input:checked+.switch:after{transform:translateX(13px)}.toggle-line input:focus-visible+.switch{outline:3px solid #87d9a5;outline-offset:2px}.plan-action{padding:5px 0 18px}.generate-button{width:100%;height:52px;border:0;border-radius:12px;background:#1b6548;color:white;display:flex;align-items:center;justify-content:space-between;text-align:left;padding:0 11px 0 19px;font-size:13px;font-weight:800;box-shadow:0 8px 16px #15643c22}.generate-button:hover{background:#105538}.arrow-round{height:33px;width:33px;display:grid;place-items:center;border-radius:9px;background:#398664;color:white;font-size:20px}.generate-button.is-loading .arrow-round{animation:spin 1.3s linear infinite}.small-disclaimer{margin:11px 8px 0;text-align:center;font-size:10px;line-height:1.6;color:#9aa79c}.routes-section{padding:22px 0 15px;border-top:1px solid #dfe6dc}.results-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}.results-count{font-size:10px;letter-spacing:1.2px;color:#a0afa1;font-weight:800}.empty-route{text-align:center;border:1px dashed #cddccc;border-radius:13px;padding:21px 15px 23px;background:#fdfefb}.empty-icon{height:39px;width:39px;margin:auto auto 10px;background:#e7f4e9;border-radius:50%;font-size:20px;color:#6ca581;display:grid;place-items:center}.empty-route strong{font-size:12px}.empty-route p{font-size:10px;line-height:1.6;color:#96a69a;max-width:245px;margin:6px auto 0}.route-cards{display:flex;flex-direction:column;gap:8px}.route-card{display:flex;flex-direction:column;width:100%;text-align:left;padding:13px 14px;background:#fff;border:1px solid #e0e8df;border-radius:12px;color:var(--ink);transition:border .15s,box-shadow .15s}.route-card.is-selected{border:1.5px solid #66a67e;background:#f3faf3;box-shadow:0 4px 18px #15592b11}.route-card:hover{border-color:#82b692}.card-upper{display:flex;justify-content:space-between;align-items:flex-start}.route-kicker{color:#6fa080;font-size:9px;letter-spacing:1.2px;font-weight:850}.route-card h3{font-size:14px;margin:5px 0 7px}.card-mile{font-size:21px;letter-spacing:-1px;font-weight:800}.card-mile span{font-size:10px;font-weight:600;letter-spacing:0;color:#91a098}.mini-bar{display:flex;overflow:hidden;height:5px;gap:1px;border-radius:5px;margin-bottom:10px;background:#e7ebe4}.mini-bar span{height:100%}.card-meta{font-size:10px;color:#90a197;display:flex;justify-content:space-between}.card-meta b{color:#408861}.route-error{background:#fff4ec;border:1px solid #f1d4bc;border-radius:11px;padding:14px;font-size:11px;color:#8e633c;line-height:1.6}
+.map-side{flex:1;min-width:0;position:relative;background:#dce5dc;isolation:isolate}#map{height:100%;width:100%;z-index:0}.map-toolbar{position:absolute;left:23px;top:21px;z-index:500;display:flex;align-items:center;gap:9px}.layer-control{background:white;box-shadow:0 3px 20px #293e331c;border:1px solid #e5ebe4;display:flex;align-items:center;padding:4px;border-radius:12px}.layer-button{background:transparent;border:0;border-radius:9px;padding:9px 15px;font-size:11px;color:#8b9b90;font-weight:760}.layer-button.is-selected{color:#1b6745;background:#e7f5e9}.surface-toggle{border:1px solid #e5ebe4;background:white;border-radius:12px;padding:13px;font-size:11px;font-weight:750;box-shadow:0 3px 20px #293e331c;color:#73857a;display:flex;align-items:center;gap:9px}.surface-toggle.is-active{color:#25704d}.layers-symbol{font-size:17px;font-weight:400;line-height:8px}.toggle-indicator{width:7px;height:7px;border-radius:50%;background:#cdd3ce}.surface-toggle.is-active .toggle-indicator{background:#4caf78}.map-google-links{position:absolute;top:21px;right:21px;display:flex;align-items:center;gap:8px;z-index:500}.map-google-links button{border:1px solid #e1e8df;border-radius:10px;background:#fff;color:#335846;padding:12px 13px;font-size:10px;font-weight:770;box-shadow:0 3px 20px #293e331c}.map-google-links span{color:#4d9c6d;margin-left:4px}.map-instruction{position:absolute;left:24px;bottom:108px;z-index:500;background:#fff;border-radius:10px;padding:11px 13px;box-shadow:0 3px 20px #293e3319;font-size:10px;font-weight:670;color:#698572}.pin-mini{color:#3c9d69;font-size:12px;margin-right:6px}.surface-legend{position:absolute;bottom:21px;left:23px;z-index:500;background:#fff;max-width:420px;padding:13px 15px 12px;border-radius:12px;box-shadow:0 3px 20px #293e331c;border:1px solid #e8ebe6}.legend-heading{color:#4b7761;font-size:9px;letter-spacing:1.2px;font-weight:850;margin-bottom:10px;display:flex;justify-content:space-between}.legend-heading span{color:#98a79b}.legend-items{display:flex;flex-wrap:wrap;gap:8px 12px;font-size:10px;color:#65796b}.legend-items span{display:flex;align-items:center;gap:5px}.legend-items i{width:8px;height:8px;border-radius:50%;display:inline-block}.legend-note{font-size:9px;color:#9daaa0;margin-top:10px;line-height:1.4}.map-attribution-extra{position:absolute;bottom:0;right:0;z-index:500;padding:4px 9px;color:#79867c;background:#ffffffda;font-size:9px}.leaflet-control-attribution{font-size:8px!important}.leaflet-top.leaflet-right{top:93px;right:10px}.leaflet-bar{border-radius:10px!important;overflow:hidden;box-shadow:0 3px 20px #293e331c!important;border:0!important}.leaflet-bar a{color:#315d48!important;border:0!important}.leaflet-container{font:inherit!important}.start-pin{width:20px;height:20px;border-radius:50%;background:#1d7e56;border:4px solid #fff;box-shadow:0 0 0 6px #3cab7142,0 2px 10px #163b2b63}.checkpoint-pin{width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #286b4a;box-shadow:0 1px 5px #0003}.leaflet-popup-content{font-size:11px;line-height:1.55}.leaflet-popup-content strong{font-size:12px;color:#284e38}.leaflet-popup-content a{display:inline-block;margin-top:5px;font-weight:700}.toast{position:absolute;top:82px;left:50%;transform:translateX(-50%);z-index:800;max-width:min(90%,450px);width:max-content;background:#1f4836;color:#fff;padding:11px 14px;border-radius:10px;box-shadow:0 10px 25px #0002;font-size:12px;line-height:1.5;text-align:center}
+.route-drawer{position:absolute;z-index:700;right:22px;bottom:29px;max-height:min(80%,610px);overflow-y:auto;width:min(358px,calc(100% - 38px));background:#fff;border:1px solid #e3e9e1;border-radius:17px;box-shadow:0 12px 46px #193a292b;padding:22px 20px 18px;scrollbar-width:thin}.route-drawer[hidden],.toast[hidden],.search-results[hidden]{display:none}.drawer-close{border:0;background:#f2f5f0;border-radius:50%;position:absolute;top:16px;right:17px;width:25px;height:25px;color:#658576;font-size:19px;display:grid;place-items:center;line-height:1}.drawer-eyebrow{font-size:9px;letter-spacing:1.5px;font-weight:850;color:#75a788}.drawer-main{display:flex;justify-content:space-between;align-items:flex-end;padding:8px 0 15px}.drawer-main h3{font-size:22px;letter-spacing:-.8px;margin:2px 0 4px}.drawer-main p{font-size:10px;margin:0;color:#97a49a}.drawer-distance{display:flex;align-items:baseline;flex-direction:column;gap:1px}.drawer-distance strong{font-size:26px;letter-spacing:-1px}.drawer-distance small{font-size:9px;color:#8a9d8e;font-weight:850;align-self:flex-end;letter-spacing:1px}.surface-bar{height:10px;display:flex;gap:1px;overflow:hidden;border-radius:7px;background:#eee}.surface-bar span{height:100%;min-width:1px}.surface-percent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px 7px;margin:15px 0 18px}.percent-item{display:flex;flex-direction:column;gap:5px}.percent-item strong{font-size:14px;color:#264d39}.percent-label{font-size:10px;color:#92a199;display:flex;align-items:center;gap:5px}.percent-label i{width:7px;height:7px;border-radius:50%}.confidence-row{display:flex;justify-content:space-between;gap:4px;border-top:1px solid #eef0eb;border-bottom:1px solid #eef0eb;padding:13px 0;font-size:10px;font-weight:700;color:#6e9a77}.confidence-row span:last-child{color:#a0aa9c}.drawer-subheading{display:flex;justify-content:space-between;align-items:center;gap:5px;margin:19px 0 10px;font-size:10px;font-weight:850;letter-spacing:1px;color:#47735b}.drawer-subheading span{font-size:8px;color:#94a69a}.checkpoints{display:flex;flex-direction:column;gap:6px}.checkpoint{border:1px solid #e9eee7;border-radius:9px;background:#fbfcf8;padding:9px 10px;display:flex;align-items:center;gap:9px;text-align:left;width:100%;color:#59705e}.checkpoint:hover{background:#eef7ee;border-color:#b4d6b7}.checkpoint-num{width:22px;height:22px;border-radius:50%;background:#e5f2e5;color:#44865d;font-weight:800;font-size:10px;display:grid;place-items:center;flex-shrink:0}.checkpoint-center{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}.checkpoint-center strong{font-size:11px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;color:#486e52}.checkpoint-center small{font-size:9px;color:#9cac9c}.checkpoint-arrow{color:#69a57e}.export-buttons{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:16px}.export-buttons button{border:1px solid #b9dbc1;background:#eef7ee;color:#34784b;border-radius:9px;padding:11px 6px;font-weight:800;font-size:10px}.export-buttons button:hover{background:#dff1e0}
+.info-dialog{max-width:460px;width:calc(100% - 35px);border:0;border-radius:16px;padding:28px 30px 27px;color:#2b4e38;box-shadow:0 24px 80px #07170d55}.info-dialog::backdrop{background:#132d2188;backdrop-filter:blur(3px)}.info-dialog h2{font-family:Georgia,serif;font-size:30px;line-height:1.1;letter-spacing:-1px;font-weight:500}.info-dialog p{font-size:12px;line-height:1.75;color:#627e6e}.info-dialog code{background:#e9f3e9;padding:2px 4px;border-radius:3px}.dialog-close{position:absolute;top:16px;right:17px;background:#eff4ed;border:0;color:#68846e;border-radius:50%;height:29px;width:29px;font-size:20px}.dialog-ok{border:0;background:#1b6548;border-radius:10px;padding:12px 25px;color:white;font-weight:750;margin-top:10px}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:1100px){.sidebar{width:350px;padding:25px 20px}.map-google-links{top:82px;right:15px}.map-toolbar{top:14px;left:15px}.map-google-links button{font-size:9px;padding:10px}.map-instruction{display:none}.route-drawer{bottom:95px;right:15px}.surface-legend{left:15px;bottom:25px;max-width:320px}}
+@media(max-width:760px){.app-shell{height:auto;min-height:100vh;overflow:visible}.app-header{height:65px;padding:0 17px}.brand-name{font-size:21px}.brand-tagline{font-size:8px}.brand-mark{height:37px;width:37px}.source-chip{display:none}.header-actions{gap:0}.workspace{display:flex;flex-direction:column}.sidebar{width:100%;max-height:none;overflow:visible;padding:23px 21px 20px}.intro h1{font-size:45px}.intro{margin-bottom:21px}.surface-picker{grid-template-columns:repeat(2,minmax(0,1fr))}.map-side{height:600px;flex:none;overflow:hidden}.map-toolbar{left:10px;top:10px}.map-google-links{right:10px;top:70px}.map-google-links button{padding:9px}.surface-toggle{padding:12px 8px}.layer-button{padding:9px 10px}.surface-legend{bottom:12px;left:10px;max-width:calc(100% - 20px);padding:9px 11px}.legend-items{gap:5px 10px}.route-drawer{top:120px;right:10px;bottom:auto;max-height:calc(100% - 205px);width:min(345px,calc(100% - 20px));padding:16px}.map-attribution-extra{display:none}.leaflet-control-attribution{display:none}.routes-section{padding-top:20px}}
+@media(max-width:360px){.surface-option{padding:7px 6px;gap:6px}.surface-illustration{width:31px;height:35px}.surface-option strong{font-size:10px}.surface-option small{font-size:8px}.icon-text-button{font-size:10px}}
+
+/* Terrain preference and elevation profile */
+.terrain-setting{margin:5px 0 13px;padding:15px 0 9px;border-top:1px solid #e7ebe5}
+.terrain-setting .setting-title{font-size:11px;font-weight:800;color:#405e4a;margin-bottom:9px}
+.terrain-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.terrain-button{background:#fff;border:1px solid #dfe9de;border-radius:8px;min-height:38px;padding:5px 3px;font-weight:750;font-size:10px;color:#648374}
+.terrain-button.is-selected{background:#e7f4e8;color:#235d43;border-color:#83b58c}
+.terrain-button:hover{border-color:#83b58c}
+.terrain-hint{font-size:10px;color:#96a69a;line-height:1.55;margin:8px 2px 0}
+.card-elevation{font-size:10px;color:#438259;font-weight:800;margin:2px 0 8px}
+.elevation-heading{margin:15px 0 8px}
+.elevation-details{background:#f7faf6;border:1px solid #e6eee4;border-radius:10px;padding:10px 11px}
+.elevation-details p{font-size:10px;color:#778b7e;line-height:1.5;margin:0}
+.elevation-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:9px}
+.elevation-metric strong{display:block;font-size:17px;color:#285d42;letter-spacing:-.5px}
+.elevation-metric span{display:block;font-size:9px;color:#839b89;margin-top:2px}
+.elevation-graph{width:100%;display:block;aspect-ratio:320/120;touch-action:pan-y}
+.elevation-readout{display:flex;justify-content:space-between;gap:8px;font-size:10px;font-weight:800;color:#4b8060;margin:4px 0}
+.elevation-note{margin-top:8px!important;font-size:9px!important;color:#94a49a!important}
+.elevation-graph .profile-crosshair{pointer-events:none;opacity:0}
+.elevation-graph.is-hovered .profile-crosshair{opacity:1}
+@media(max-width:760px){.terrain-button{font-size:11px}.elevation-metric strong{font-size:15px}}
+
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none"><path d="M6 26C12 20 17 20 22 25C27 30 31 27 35 21" stroke="white" stroke-width="3.4" stroke-linecap="round"/><path d="M7 16C13 10 20 10 26 15" stroke="#9CE8BB" stroke-width="3.4" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg>
+        </div>
+        <div><div class="brand-name">surface<span>stride</span><span class="brand-dot">.</span></div><div class="brand-tagline">RUNNING ROUTE INTELLIGENCE</div></div>
+      </div>
+      <div class="header-actions">
+        <span class="source-chip"><span class="live-dot"></span> OpenStreetMap-powered</span>
+        <button type="button" class="icon-text-button" id="infoButton" aria-label="How this works"><span class="question-icon">?</span> How it works</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" aria-label="Route planner settings">
+        <div class="intro">
+          <span class="eyebrow"><span class="line"></span> ROUTE STUDIO</span>
+          <h1>Find your<br/><em>footing.</em></h1>
+          <p>Routes built around what you run <strong>on</strong>, not just where you run.</p>
+        </div>
+
+        <section class="section location-section">
+          <div class="section-heading"><span class="step">01</span><h2>Your starting point</h2></div>
+          <div class="search-box">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <input id="locationInput" placeholder="Place, address, or coordinates" autocomplete="off" aria-label="Location" value="University of Texas, Austin" />
+            <button id="locationSearch" type="button" title="Search for location" aria-label="Search location">↵</button>
+          </div>
+          <div id="searchResults" class="search-results" hidden></div>
+          <div class="loc-hint"><button id="myLocation" type="button" class="tiny-action"><span class="crosshair">⊙</span> Use my location</button><span class="divider-dot">·</span><span>or click anywhere on the map</span></div>
+          <div class="start-coords" id="startCoords">START 30.28490, -97.73400</div>
+        </section>
+
+        <section class="section surface-section">
+          <div class="section-heading"><span class="step">02</span><h2>Preferred surface</h2></div>
+          <div class="surface-picker" role="radiogroup" aria-label="Preferred surface">
+            <button class="surface-option is-selected" type="button" data-surface="soft" aria-pressed="true"><span class="surface-illustration soft"><i></i><i></i><i></i></span><span><strong>Soft ground</strong><small>Grass, dirt, track</small></span></button>
+            <button class="surface-option" type="button" data-surface="gravel" aria-pressed="false"><span class="surface-illustration gravel"><i></i><i></i><i></i></span><span><strong>Gravel</strong><small>Crushed, compacted</small></span></button>
+            <button class="surface-option" type="button" data-surface="paved" aria-pressed="false"><span class="surface-illustration paved"><i></i><i></i></span><span><strong>Pavement</strong><small>Roads, sidewalks</small></span></button>
+            <button class="surface-option" type="button" data-surface="mixed" aria-pressed="false"><span class="surface-illustration mixed"><i></i><i></i><i></i></span><span><strong>Mixed</strong><small>A little of it all</small></span></button>
+          </div>
+          <div class="setting-line surface-goal"><div class="setting-title">Preferred surface goal <span class="micro-info" title="A preference, not a guarantee. Routes show the actual estimated share.">i</span></div><strong id="goalValue">60%</strong></div>
+          <input class="range" id="goalRange" type="range" min="0" max="100" step="5" value="60" aria-label="Target percent preferred surface" />
+          <div class="range-ticks"><span>Flexible</span><span>As much as possible</span></div>
+        </section>
+
+        <section class="section distance-section">
+          <div class="section-heading"><span class="step">03</span><h2>The run</h2></div>
+          <div class="distance-number"><strong id="distanceValue">5.0</strong><span>MILES</span><small id="distanceKm">8.0 km</small></div>
+          <input class="range" id="distanceRange" type="range" min="1" max="25" value="5" step="0.5" aria-label="Target run distance in miles" />
+          <div class="range-ticks"><span>1 mi</span><span>25 mi</span></div>
+          <div class="mode-options" role="radiogroup" aria-label="Route shape">
+            <button class="mode-button is-selected" type="button" data-mode="loop" aria-pressed="true"><span class="mode-graphic">↻</span> Loop</button>
+            <button class="mode-button" type="button" data-mode="out-and-back" aria-pressed="false"><span class="mode-graphic">↔</span> Out &amp; back</button>
+          </div>
+          <div class="terrain-setting">
+            <div class="setting-title">Elevation preference <span class="micro-info" title="Compares estimated climbing across available candidate routes. Not a guarantee of the flattest or hilliest possible path.">i</span></div>
+            <div class="terrain-options" role="radiogroup" aria-label="Elevation preference">
+              <button class="terrain-button is-selected" type="button" data-terrain="any" aria-pressed="true">Any hills</button>
+              <button class="terrain-button" type="button" data-terrain="flat" aria-pressed="false">Flat</button>
+              <button class="terrain-button" type="button" data-terrain="rolling" aria-pressed="false">Rolling</button>
+              <button class="terrain-button" type="button" data-terrain="hilly" aria-pressed="false">Hilly</button>
+            </div>
+            <p class="terrain-hint">Flat minimizes climbs among the candidate routes. Rolling favors moderate hills; Hilly favors more climbing.</p>
+          </div>
+          <label class="toggle-line"><span><strong>Avoid busy roads</strong><small>Favor trails and quieter streets</small></span><input id="avoidTraffic" type="checkbox" checked /><span class="switch"></span></label>
+          <label class="toggle-line"><span><strong>Prefer confirmed surfaces</strong><small>Penalize missing surface tags</small></span><input id="favorTagged" type="checkbox" checked /><span class="switch"></span></label>
+        </section>
+
+        <div class="plan-action">
+          <button type="button" id="generateButton" class="generate-button"><span id="generateLabel">Find my routes</span><span class="arrow-round">↗</span></button>
+          <p class="small-disclaimer">Routes are estimates. Check access, crossings, current conditions, and surface before running.</p>
+        </div>
+
+        <section id="routesSection" class="routes-section" aria-live="polite">
+          <div class="results-head"><span class="eyebrow"><span class="line"></span> YOUR ROUTES</span><span id="resultCount" class="results-count">0 FOUND</span></div>
+          <div id="routeCards" class="route-cards"><div class="empty-route"><div class="empty-icon">↗</div><strong>Made for your miles.</strong><p>Choose your surface, set your distance, and generate a route.</p></div></div>
+        </section>
+      </aside>
+
+      <main class="map-side" aria-label="Running route map">
+        <div id="map" aria-label="Map showing running routes" role="application"></div>
+        <div class="map-toolbar">
+          <div class="layer-control" aria-label="Map layer options">
+            <button type="button" class="layer-button is-selected" data-layer="streets" aria-pressed="true">Map</button>
+            <button type="button" class="layer-button" data-layer="satellite" aria-pressed="false">Satellite</button>
+          </div>
+          <button class="surface-toggle is-active" id="surfaceOverlayToggle" type="button" aria-pressed="true"><span class="layers-symbol">▤</span> Surface data <span class="toggle-indicator"></span></button>
+        </div>
+        <div class="map-google-links">
+          <button type="button" id="earthButton" title="View the location in Google Earth">View in Google Earth <span>↗</span></button>
+          <button type="button" id="streetViewButton" title="Open Google Street View at selected point">Street View <span>↗</span></button>
+        </div>
+        <div class="map-instruction"><span class="pin-mini">●</span> Click map to move your starting point</div>
+        <div class="surface-legend" aria-label="Surface legend">
+          <div class="legend-heading">SURFACE KEY <span id="surfaceCount"></span></div>
+          <div class="legend-items"><span><i style="background:#429b5d"></i>Grass</span><span><i style="background:#a46b45"></i>Dirt</span><span><i style="background:#ca9a55"></i>Gravel</span><span><i style="background:#66737c"></i>Paved</span><span><i style="background:#b66896"></i>Track</span><span><i style="background:#aab1b8"></i>Unknown</span></div>
+          <div class="legend-note">Line colors indicate OSM data, not verified imagery.</div>
+        </div>
+        <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+        <div id="routeDrawer" class="route-drawer" hidden>
+          <button id="closeDrawer" class="drawer-close" aria-label="Close route details">×</button>
+          <div class="drawer-eyebrow">SELECTED ROUTE <span id="detailRouteNumber">01</span></div>
+          <div class="drawer-main"><div><h3 id="detailTitle">Best match</h3><p id="detailSubtitle">Surface-aware running route</p></div><div class="drawer-distance"><strong id="detailMiles">5.00</strong><small>MILES</small></div></div>
+          <div id="surfaceBar" class="surface-bar" aria-label="Route surface composition"></div>
+          <div id="surfacePercents" class="surface-percent-grid"></div>
+          <div class="confidence-row"><span id="confidenceText"></span><span id="matchText"></span></div>
+          <div class="drawer-subheading elevation-heading">ELEVATION PROFILE <span>ESTIMATED TERRAIN</span></div>
+          <div id="elevationDetails" class="elevation-details" aria-live="polite"><p>Elevation is calculated after routes are found.</p></div>
+          <div class="drawer-subheading">CHECK THE SURFACE <span>GOOGLE STREET VIEW ↗</span></div>
+          <div id="checkpointList" class="checkpoints"></div>
+          <div class="export-buttons"><button type="button" id="gpxButton">↓ GPX for your watch</button><button type="button" id="kmlButton">↓ KML for Google Earth</button></div>
+        </div>
+        <div class="map-attribution-extra">Map labels: © OpenStreetMap contributors · Route graph: OSM / Overpass</div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+/* Terrain elevation from the Open-Meteo public 90 m Copernicus DEM.
+   Browser-compatible, no API key, and never substitutes guesses for missing data. */
+(() => {
+  'use strict';
+  const MILE = 1609.344;
+  const FEET = 3.280839895;
+  const ENDPOINT = 'https://api.open-meteo.com/v1/elevation';
+  const PREFERRED = {soft:['grass','dirt','track'], gravel:['gravel'], paved:['paved'], mixed:['grass','dirt','gravel','paved','track']};
+  const cache = new Map();
+  function haversine(a,b){
+    const dlat=(b[0]-a[0])*Math.PI/180,dlon=(b[1]-a[1])*Math.PI/180;
+    const p=a[0]*Math.PI/180,q=b[0]*Math.PI/180;
+    const h=Math.sin(dlat/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(dlon/2)**2;
+    return 12742017.6*Math.asin(Math.min(1,Math.sqrt(h)));
+  }
+  function samples(coordinates, desiredGap=165, maxPoints=240){
+    if(!Array.isArray(coordinates)||coordinates.length<2)throw new Error('Route has no coordinates');
+    const distances=[0];
+    for(let i=1;i<coordinates.length;i++)distances.push(distances[i-1]+haversine(coordinates[i-1],coordinates[i]));
+    const total=distances[distances.length-1];
+    if(total<1)throw new Error('Route is too short to evaluate');
+    const count=Math.max(2,Math.min(maxPoints,Math.ceil(total/desiredGap)+1));
+    const out=[];let edge=1;
+    for(let i=0;i<count;i++){
+      const d=i===count-1?total:total*i/(count-1);
+      while(edge<distances.length-1&&distances[edge]<d)edge++;
+      const d0=distances[edge-1],d1=distances[edge],f=d1>d0?(d-d0)/(d1-d0):0;
+      const a=coordinates[edge-1],b=coordinates[edge];
+      out.push({m:d,lat:a[0]+(b[0]-a[0])*f,lon:a[1]+(b[1]-a[1])*f});
+    }
+    return out;
+  }
+  async function queryElevations(pts, fetcher=fetch){
+    const heights=[];
+    for(let i=0;i<pts.length;i+=100){
+      const chunk=pts.slice(i,i+100);
+      const params=new URLSearchParams({
+        latitude:chunk.map(x=>x.lat.toFixed(6)).join(','),
+        longitude:chunk.map(x=>x.lon.toFixed(6)).join(',')
+      });
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),17000);
+      try{
+        const res=await fetcher(`${ENDPOINT}?${params}`,{signal:controller.signal});
+        if(!res.ok)throw new Error(`Elevation service returned HTTP ${res.status}`);
+        const data=await res.json();
+        if(!Array.isArray(data.elevation)||data.elevation.length!==chunk.length||
+           data.elevation.some(v=>!Number.isFinite(v)))throw new Error('Incomplete elevation data');
+        heights.push(...data.elevation);
+      }finally{clearTimeout(timer);}
+    }
+    return heights;
+  }
+  function middle3(a,b,c){return Math.max(Math.min(a,b),Math.min(Math.max(a,b),c));}
+  function analyze(pts, heights){
+    if(pts.length!==heights.length||heights.length<2||heights.some(v=>!Number.isFinite(v)))throw new Error('Invalid elevation profile');
+    // Three-sample median filter reduces single-cell DEM artifacts; smoothing
+    // necessarily loses some short climbs. All displayed figures are estimates.
+    const smooth=heights.map((v,i)=>i===0||i===heights.length-1?v:middle3(heights[i-1],v,heights[i+1]));
+    let ascent=0,descent=0,maxUp=0,maxDown=0;
+    const profile=smooth.map((e,i)=>({mile:pts[i].m/MILE,elevation_ft:e*FEET,elevation_m:e,grade_pct:0,lat:pts[i].lat,lon:pts[i].lon}));
+    for(let i=1;i<profile.length;i++){
+      const rise=smooth[i]-smooth[i-1],run=pts[i].m-pts[i-1].m;
+      // Ignore sub-meter DEM jitter but not real climbs. Use the same effective
+      // change for gain/loss and displayed grades.
+      const delta=Math.abs(rise)<0.7?0:rise;
+      if(delta>=0)ascent+=delta;else descent-=delta;
+      const grade=run>1?100*delta/run:0;
+      profile[i].grade_pct=grade;
+      maxUp=Math.max(maxUp,grade);maxDown=Math.max(maxDown,-grade);
+    }
+    const length=pts[pts.length-1].m;
+    return {
+      elevation_status:'available', elevation_source:'Copernicus DEM GLO-90 / Open-Meteo',
+      elevation_gain_ft:Math.round(ascent*FEET),elevation_loss_ft:Math.round(descent*FEET),
+      min_elevation_ft:Math.round(Math.min(...smooth)*FEET),max_elevation_ft:Math.round(Math.max(...smooth)*FEET),
+      max_uphill_grade_pct:+maxUp.toFixed(1),max_downhill_grade_pct:+maxDown.toFixed(1),
+      max_grade_pct:+Math.max(maxUp,maxDown).toFixed(1),
+      average_grade_pct:+(100*(ascent+descent)/Math.max(1,length)).toFixed(1),
+      climb_ft_per_mile:Math.round(ascent*FEET/Math.max(.01,length/MILE)),
+      elevation_profile:profile.map(p=>({...p,mile:+p.mile.toFixed(3),elevation_ft:+p.elevation_ft.toFixed(1),grade_pct:+p.grade_pct.toFixed(1)}))
+    };
+  }
+  async function evaluate(route, {gap=165,maxPoints=240,fetcher=fetch}={}){
+    const pts=samples(route.coordinates,gap,maxPoints);
+    const key=pts.length+':'+pts.map(p=>p.lat.toFixed(5)+','+p.lon.toFixed(5)).join(';');
+    let elevations=cache.get(key);
+    if(!elevations){elevations=await queryElevations(pts,fetcher);if(cache.size>22)cache.delete(cache.keys().next().value);cache.set(key,elevations);}
+    return {...route,...analyze(pts,elevations)};
+  }
+  function routeScore(route,opts){
+    const preferred=PREFERRED[opts.preference]||PREFERRED.soft;
+    const share=preferred.reduce((n,k)=>n+(route.surface_percent[k]||0),0);
+    const distinct=['grass','dirt','gravel','paved','track'].filter(k=>(route.surface_percent[k]||0)>=8).length;
+    const gap=opts.preference==='mixed'? (3-Math.min(3,distinct))*.13 : Math.max(0,opts.goal_pct-share)/100;
+    let score=3.5*Math.abs(route.distance_miles-opts.miles)/opts.miles+1.6*gap+
+      route.unknown_percent*.003+route.road_percent*.001;
+    if(route.elevation_status!=='available')return score;
+    const gain=route.climb_ft_per_mile;
+    if(opts.terrain==='flat')score+=Math.min(3.4,gain/100)*.75+Math.min(1,route.max_grade_pct/12)*.16;
+    if(opts.terrain==='rolling')score+=Math.min(2,Math.abs(gain-75)/75)*.50;
+    if(opts.terrain==='hilly')score+=.86/(1+gain/75);
+    return score;
+  }
+  async function enrich(data,opts,{fetcher=fetch,limit=3}={}){
+    if(!data.routes?.length)return data;
+    const pool=data.routes.slice(0,5);
+    const quick=[];
+    // Two concurrent candidates limit calls to the public service.
+    for(let i=0;i<pool.length;i+=2){
+      const batch=await Promise.all(pool.slice(i,i+2).map(async route=>{
+        try{return await evaluate(route,{gap:400,maxPoints:100,fetcher});}
+        catch(err){return {...route,elevation_status:'unavailable',elevation_note:'Elevation service unavailable. Surface routes still work.'};}
+      }));
+      quick.push(...batch);
+      if(batch.every(r=>r.elevation_status==='unavailable')){
+        // Do not make repeated failed calls to the public provider.
+        for(let j=i+2;j<pool.length;j++)quick.push({...pool[j],elevation_status:'unavailable',elevation_note:'Elevation service unavailable. Surface routes still work.'});
+        break;
+      }
+    }
+    quick.sort((a,b)=>routeScore(a,opts)-routeScore(b,opts));
+    const selected=quick.slice(0,limit);
+    for(let i=0;i<selected.length;i++){
+      const route=selected[i];
+      if(route.elevation_status==='available'){
+        try{selected[i]=await evaluate(route,{gap:165,maxPoints:240,fetcher});}
+        catch(_err){/* Preserve the coarse verified profile rather than invent data. */}
+      }
+    }
+    const liked=PREFERRED[opts.preference]||PREFERRED.soft;
+    const routes=selected.map((route,i)=>({...route,id:i+1,title:i===0?'Best match':`Alternative ${i+1}`,
+      match_percent:Math.min(100,Math.round(liked.reduce((sum,k)=>sum+(route.surface_percent[k]||0),0)))}));
+    return {...data,routes,elevation_note:routes.some(r=>r.elevation_status==='available')?
+      'Elevation estimated from 90 m terrain data; hills, bridges, short climbs, and grade can differ on the ground.':
+      'Elevation temporarily unavailable; routes use surface and distance information only.'};
+  }
+  function interpolate(profile,mile){
+    if(!profile?.length)return null;
+    if(mile<=profile[0].mile)return profile[0].elevation_m;
+    for(let i=1;i<profile.length;i++){
+      if(profile[i].mile>=mile){const a=profile[i-1],b=profile[i],f=(mile-a.mile)/Math.max(1e-7,b.mile-a.mile);
+        return a.elevation_m+f*(b.elevation_m-a.elevation_m);}
+    }
+    return profile[profile.length-1].elevation_m;
+  }
+  window.SurfaceStrideElevation={enrich,samples,analyze,routeScore,interpolate,_test:{evaluate,queryElevations,cache}};
+})();
+
+</script>
+  <script>
+/* SurfaceStride browser-only engine. OpenStreetMap tags, not Google image analysis. */
+(() => {
+  'use strict';
+  const MILE = 1609.344, EARTH = 6371008.8;
+  const ROAD = new Set(['residential','living_street','service','tertiary','unclassified']);
+  const VALID = new Set(['footway','path','pedestrian','track','residential','living_street','service','unclassified','tertiary','cycleway','steps','bridleway']);
+  const SOFT = new Set(['grass','dirt','track']);
+  const ALL = ['grass','dirt','gravel','paved','track','unknown'];
+  const SURFACE = {
+    asphalt:'paved',concrete:'paved','concrete:plates':'paved',paved:'paved',paving_stones:'paved',sett:'paved',cobblestone:'paved',bricks:'paved',metal:'paved',wood:'paved',
+    rubber:'track',tartan:'track',synthetic:'track',clay:'track',acrylic:'track',
+    gravel:'gravel',fine_gravel:'gravel',pebblestone:'gravel',compacted:'gravel',crushed_limestone:'gravel',rock:'gravel',
+    dirt:'dirt',earth:'dirt',ground:'dirt',unpaved:'dirt',mud:'dirt',sand:'dirt',woodchips:'dirt',soil:'dirt',grass:'grass',grass_paver:'grass'
+  };
+  const cache = new Map();
+  const rad = n => n*Math.PI/180;
+  function distance(a,b){
+    const dl=rad(b.lat-a.lat), dn=rad(b.lon-a.lon);
+    const h=Math.sin(dl/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dn/2)**2;
+    return 2*EARTH*Math.asin(Math.min(1,Math.sqrt(h)));
+  }
+  function dest(a,bearing,m){return {lat:a.lat + m*Math.cos(rad(bearing))/111195,lon:a.lon + m*Math.sin(rad(bearing))/(111195*Math.max(.15,Math.cos(rad(a.lat))))};}
+  function surface(tags){
+    const raw=(tags.surface||'').trim().toLowerCase();
+    if(raw)return {surface:SURFACE[raw]||'unknown',evidence:SURFACE[raw]?'tagged':'unclassified',raw_surface:raw};
+    if(ROAD.has(tags.highway)||tags.footway==='sidewalk'||['both','left','right'].includes(tags.sidewalk))return {surface:'paved',evidence:'inferred',raw_surface:''};
+    return {surface:'unknown',evidence:'unclassified',raw_surface:''};
+  }
+  function walkable(t){
+    return VALID.has(t.highway) && !['no','private','use_sidepath'].includes(t.foot) &&
+      !['no','private','customers','permit'].includes(t.access) && !t.construction &&
+      t.area!=='yes' && t.indoor!=='yes' && t.motorroad!=='yes' &&
+      (t.highway!=='cycleway'||['yes','designated','permissive'].includes(t.foot));
+  }
+  function edgeKey(a,b){return a<b?a+':'+b:b+':'+a;}
+  function parse(data){
+    const nodes=new Map(),ways=[],edges=new Map(),adj=new Map();
+    for(const el of data.elements||[]){
+      if(el.type==='node'&&Number.isFinite(el.lat)&&Number.isFinite(el.lon))nodes.set(el.id,{lat:el.lat,lon:el.lon});
+      if(el.type==='way')ways.push(el);
+    }
+    const good=[];
+    for(const way of ways){
+      const t=way.tags||{};if(!walkable(t)||!way.nodes||way.nodes.length<2)continue;
+      const s=surface(t);good.push(way);
+      for(let i=1;i<way.nodes.length;i++){
+        const a=way.nodes[i-1],b=way.nodes[i],p=nodes.get(a),q=nodes.get(b);
+        if(!p||!q||a===b)continue;
+        const len=distance(p,q);if(len<=.02)continue;
+        const k=edgeKey(a,b),old=edges.get(k);
+        if(old?.evidence==='tagged'&&s.evidence!=='tagged')continue;
+        edges.set(k,{...s,length:len,highway:t.highway,name:t.name||'Unnamed path',way_id:way.id});
+      }
+    }
+    // Build adjacency after deduplication, so it always matches the selected edge metadata.
+    for(const [key,e] of edges){
+      const [a,b]=key.split(':').map(Number);
+      if(!adj.has(a))adj.set(a,[]);if(!adj.has(b))adj.set(b,[]);
+      adj.get(a).push({to:b,e,key});adj.get(b).push({to:a,e,key});
+    }
+    return {nodes,adj,ways:good};
+  }
+  function component(net,start){
+    const seen=new Set([start]),queue=[start];
+    for(let i=0;i<queue.length;i++){
+      for(const {to} of net.adj.get(queue[i])||[]){if(!seen.has(to)){seen.add(to);queue.push(to);}}
+    }
+    return seen;
+  }
+  function choose(net,lat,lon){
+    const coord={lat,lon},arr=[];
+    for(const id of net.adj.keys()){
+      const p=net.nodes.get(id),dx=(p.lon-lon)*111195*Math.cos(rad(lat)),dy=(p.lat-lat)*111195;
+      arr.push([dx*dx+dy*dy,id]);
+    }
+    arr.sort((a,b)=>a[0]-b[0]);
+    if(!arr.length)throw new Error('No mapped pedestrian paths at this location.');
+    const visited=new Set();let picked=null;
+    for(const [ds,id] of arr.slice(0,90)){
+      if(ds>800*800)break;
+      if(visited.has(id))continue;
+      const group=component(net,id);for(const n of group)visited.add(n);
+      if(group.size>=12){picked={start:id,offset:Math.sqrt(ds),group};break;}
+    }
+    if(!picked)throw new Error('No connected walking network close to this starting point. Try moving the map pin.');
+    picked.nodeIds=Array.from(picked.group);
+    return picked;
+  }
+  function closest(net,ids,lat,lon){
+    let best=null,bd=Infinity;const factor=111195*Math.cos(rad(lat));
+    for(const id of ids){const p=net.nodes.get(id),d=((p.lat-lat)*111195)**2+((p.lon-lon)*factor)**2;
+      if(d<bd){bd=d;best=id;}}
+    return best;
+  }
+  class Heap{
+    constructor(){this.a=[];}
+    push(value,key){let a=this.a,i=a.length;a.push([value,key]);while(i){let p=(i-1)>>1;if(a[p][0]<=value)break;a[i]=a[p];i=p;}a[i]=[value,key];}
+    pop(){const a=this.a,first=a[0],last=a.pop();if(a.length){let i=0;while(i*2+1<a.length){let c=i*2+1;if(c+1<a.length&&a[c+1][0]<a[c][0])c++;if(a[c][0]>=last[0])break;a[i]=a[c];i=c;}a[i]=last;}return first;}
+    get size(){return this.a.length;}
+  }
+  function path(net,from,to,opts,used){
+    if(from===to)return [from];
+    const best=new Map([[from,0]]),prev=new Map(),heap=new Heap();heap.push(0,from);
+    const liked=opts.preference==='soft'?SOFT:new Set([opts.preference==='mixed'?'no_surface':opts.preference]);
+    while(heap.size){
+      const [cost,id]=heap.pop();if(cost>best.get(id)+1e-8)continue;
+      if(id===to){const out=[id];let cursor=id;while(cursor!==from){cursor=prev.get(cursor);if(cursor===undefined)return null;out.push(cursor);}return out.reverse();}
+      for(const {to:next,e,key} of net.adj.get(id)||[]){
+        let factor=opts.preference==='mixed'?(e.surface==='unknown'?1.5:1):liked.has(e.surface)?.75:e.surface==='unknown'?1.65:opts.preference==='soft'&&e.surface==='gravel'?1.05:2.2;
+        if(opts.favor_tagged&&e.evidence!=='tagged')factor*=1.3;
+        if(e.highway==='steps')factor*=3.1;
+        if(opts.avoid_traffic&&ROAD.has(e.highway))factor*=['residential','living_street'].includes(e.highway)?2:3.1;
+        if(used?.has(key))factor*=4.5;
+        const candidate=cost+Math.max(.1,e.length*factor);
+        if(candidate<(best.get(next)??Infinity)){best.set(next,candidate);prev.set(next,id);heap.push(candidate,next);}
+      }
+    }
+    return null;
+  }
+  function describe(net,route,offset){
+    const lengths=Object.fromEntries(ALL.map(k=>[k,0])),ev={tagged:0,inferred:0,unclassified:0};
+    let sum=0,roads=0;
+    const coordinates=route.map(id=>{const p=net.nodes.get(id);return [Number(p.lat.toFixed(7)),Number(p.lon.toFixed(7))];});
+    const spans=[];let span=null;const steps=[];
+    for(let i=1;i<route.length;i++){
+      const a=route[i-1],b=route[i],e=net.adj.get(a).find(x=>x.to===b).e;
+      sum+=e.length;lengths[e.surface]+=e.length;ev[e.evidence]+=e.length;
+      if(ROAD.has(e.highway))roads+=e.length;
+      if(!span||span.surface!==e.surface){span={surface:e.surface,points:[coordinates[i-1],coordinates[i]]};spans.push(span);}
+      else span.points.push(coordinates[i]);
+      steps.push({cum:sum,e,node:b});
+    }
+    if(sum===0)return null;
+    const checkpoints=[];let j=0;
+    for(const fraction of [.16,.34,.52,.70,.87]){
+      const at=sum*fraction;while(j<steps.length-1&&steps[j].cum<at)j++;
+      const s=steps[j],p=net.nodes.get(s.node);
+      checkpoints.push({lat:p.lat,lon:p.lon,surface:s.e.surface,evidence:s.e.evidence,name:s.e.name,at_mile:Number((s.cum/MILE).toFixed(2))});
+    }
+    return {distance_miles:Number((sum/MILE).toFixed(2)),distance_m:Math.round(sum),
+      surface_percent:Object.fromEntries(ALL.map(k=>[k,Number((100*lengths[k]/sum).toFixed(1))])),
+      tagged_percent:Math.round(100*ev.tagged/sum),inferred_percent:Math.round(100*ev.inferred/sum),
+      unknown_percent:Math.round(100*ev.unclassified/sum),road_percent:Math.round(100*roads/sum),
+      distance_to_start_m:Math.round(offset),coordinates,spans,checkpoints};
+  }
+  function edgesOf(route){const result=new Set();for(let i=1;i<route.length;i++)result.add(edgeKey(route[i-1],route[i]));return result;}
+  function rank(item,opts){
+    const pct=item.surface_percent,liked=opts.preference==='soft'?['grass','dirt','track']:
+      opts.preference==='mixed'?['grass','dirt','gravel','paved','track']:[opts.preference];
+    const share=liked.reduce((n,k)=>n+(pct[k]||0),0);
+    let gap=Math.max(0,opts.goal_pct-share)/100;
+    if(opts.preference==='mixed')gap=(3-Math.min(3,['paved','gravel','dirt','grass','track'].filter(k=>(pct[k]||0)>=8).length))*.13;
+    return Math.abs(item.distance_miles-opts.miles)/opts.miles*3.5+gap*1.6+item.unknown_percent*.003+item.road_percent*.001;
+  }
+  function overlay(net,lat,lon){
+    const items=[];
+    for(const way of net.ways){
+      const coords=(way.nodes||[]).map(n=>net.nodes.get(n)).filter(Boolean);if(coords.length<2)continue;
+      const tags=way.tags||{},s=surface(tags),mid=coords[Math.floor(coords.length/2)];
+      const sc=distance({lat,lon},mid)-(s.evidence==='tagged'?550:0);
+      items.push([sc,{id:way.id,name:tags.name||'Unnamed path',...s,type:tags.highway||'',coordinates:coords.map(p=>[Number(p.lat.toFixed(6)),Number(p.lon.toFixed(6))])}]);
+    }
+    items.sort((a,b)=>a[0]-b[0]);return items.slice(0,1600).map(x=>x[1]);
+  }
+  async function run(net,opts){
+    const {start,offset,nodeIds}=choose(net,opts.lat,opts.lon),origin=net.nodes.get(start);
+    const target=opts.miles*MILE,anchor=target/(2*Math.PI),candidates=[],fingerprints=new Set();
+    const angles=opts.mode==='loop'?Array.from({length:8},(_,i)=>i*45):Array.from({length:12},(_,i)=>i*30);
+    const radii=opts.mode==='loop'?[.70,1.05,1.3]:[.55,.8,1];
+    for(const factor of radii){
+      for(const bearing of angles){
+        let route=null;
+        if(opts.mode==='loop'){
+          const anchors=[0,1,2].map(i=>{const p=dest(origin,(bearing+70+120*i)%360,anchor*factor);return closest(net,nodeIds,p.lat,p.lon);});
+          if(new Set([start,...anchors]).size<4)continue;
+          route=[start];let from=start;const used=new Set();
+          for(const to of [...anchors,start]){
+            const leg=path(net,from,to,opts,used);
+            if(!leg){route=null;break;}
+            route.push(...leg.slice(1));for(const key of edgesOf(leg))used.add(key);
+            from=to;
+          }
+        }else{
+          const p=dest(origin,bearing,target*.5*factor),end=closest(net,nodeIds,p.lat,p.lon);
+          if(end===start)continue;
+          const outbound=path(net,start,end,opts);
+          if(outbound)route=[...outbound,...outbound.slice(0,-1).reverse()];
+        }
+        if(!route||route.length<4)continue;
+        const edges=edgesOf(route),finger=Array.from(edges).sort().join(',');
+        if(fingerprints.has(finger))continue;fingerprints.add(finger);
+        const item=describe(net,route,offset);
+        if(!item||item.distance_miles<opts.miles*.45||item.distance_miles>opts.miles*1.85)continue;
+        item.mode=opts.mode;candidates.push({item,edges,score:rank(item,opts)});
+        // Let the browser paint between substantial searches.
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
+    }
+    candidates.sort((a,b)=>a.score-b.score);
+    const chosen=[];
+    for(const threshold of [.68,.82,.95,1.01]){
+      for(const candidate of candidates){
+        if(chosen.length>=5)break;
+        if(chosen.includes(candidate))continue;
+        if(chosen.some(c=>{let common=0;for(const key of candidate.edges)if(c.edges.has(key))common++;
+          return common/Math.max(1,Math.min(candidate.edges.size,c.edges.size))>threshold;}))continue;
+        chosen.push(candidate);
+      }
+      if(chosen.length>=5)break;
+    }
+    const liked=opts.preference==='soft'?['grass','dirt','track']:
+      opts.preference==='mixed'?['grass','dirt','gravel','paved','track']:[opts.preference];
+    return {routes:chosen.map((c,i)=>({...c.item,id:i+1,title:i===0?'Best match':`Alternative ${i+1}`,
+      match_percent:Math.min(100,Math.round(liked.reduce((n,k)=>n+(c.item.surface_percent[k]||0),0)))})),
+      network_nodes:nodeIds.length,start:origin,requested_start:{lat:opts.lat,lon:opts.lon},
+      warnings:candidates.length?[]:['No matching routes found. Try a shorter distance or different start.'],
+      surface_ways:overlay(net,opts.lat,opts.lon),source:'OpenStreetMap / Overpass (browser mode)',
+      surface_note:'Surface data may be unknown or inferred; check in person.'};
+  }
+  function radius(miles){return Math.max(1650,Math.min(4700,miles*MILE*.265))+Math.max(0,miles-18)*500;}
+  function query(lat,lon,miles){
+    const r=radius(miles),a=r/111195,b=r/(111195*Math.max(.15,Math.cos(rad(lat))));
+    const types='footway|path|pedestrian|track|residential|living_street|service|unclassified|tertiary|cycleway|steps|bridleway';
+    return `[out:json][timeout:50];way["highway"~"^(${types})$"](${(lat-a).toFixed(6)},${(lon-b).toFixed(6)},${(lat+a).toFixed(6)},${(lon+b).toFixed(6)});(._;>;);out body qt;`;
+  }
+  async function fetchNetwork(opts){
+    const key=[opts.lat.toFixed(3),opts.lon.toFixed(3),Math.round(radius(opts.miles)/250)].join(':');
+    const c=cache.get(key);if(c&&Date.now()-c.time<20*60*1000)return c.net;
+    const body=new URLSearchParams({data:query(opts.lat,opts.lon,opts.miles)}),errors=[];
+    for(const url of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){
+      try{
+        const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),85000);
+        let response;
+        try{response=await fetch(url,{method:'POST',body,signal:ctrl.signal});}
+        finally{clearTimeout(timer);}
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const data=await response.json();if((data.elements||[]).length<20)throw new Error('Not enough mapped paths returned');
+        const net=parse(data);if(!net.adj.size)throw new Error('No walkable paths mapped in the area');
+        cache.set(key,{time:Date.now(),net});if(cache.size>3)cache.delete(cache.keys().next().value);
+        return net;
+      }catch(err){errors.push(err.message||String(err));}
+    }
+    throw new Error('Map path-data servers are unavailable or blocked. Check internet access, try again later, or use the Python version. '+errors.join('; '));
+  }
+  async function search(q){
+    const match=q.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+    if(match){const lat=Number(match[1]),lon=Number(match[2]);if(Math.abs(lat)<=85&&Math.abs(lon)<=180)return {results:[{lat,lon,name:`${lat.toFixed(5)}, ${lon.toFixed(5)}`}]};}
+    const url='https://nominatim.openstreetmap.org/search?'+new URLSearchParams({q,format:'jsonv2',limit:'5'});
+    let r;try{r=await fetch(url);}catch(_err){throw new Error('Location search is unavailable. Try coordinates or click the map.');}
+    if(!r.ok)throw new Error('Location search service is busy. Click the map instead.');
+    const rows=await r.json();return {results:rows.map(x=>({lat:Number(x.lat),lon:Number(x.lon),name:x.display_name}))};
+  }
+  window.SurfaceStrideAPI={
+    search,
+    async plan(opts){if(opts.miles<1||opts.miles>25)throw new Error('Choose a run from 1 to 25 miles.');
+      return run(await fetchNetwork(opts),opts);},
+    // Offline test interface, not needed by the app itself.
+    _test:{parse,run,query,radius}
+  };
+})();
+
+</script>
+<script>
+/* SurfaceStride browser client. Uses OSM route data, not Google image scraping. */
+(() => {
+  'use strict';
+  const SURFACES = [
+    {id:'grass',label:'Grass',color:'#429b5d'},
+    {id:'dirt',label:'Dirt',color:'#a46b45'},
+    {id:'gravel',label:'Gravel',color:'#ca9a55'},
+    {id:'paved',label:'Paved',color:'#66737c'},
+    {id:'track',label:'Track',color:'#b66896'},
+    {id:'unknown',label:'Unknown',color:'#aab1b8'}
+  ];
+  const lookup = Object.fromEntries(SURFACES.map(s=>[s.id,s]));
+  const $ = id => document.getElementById(id);
+  const state = {
+    start:{lat:30.28490,lon:-97.73400},
+    inspect:{lat:30.28490,lon:-97.73400},
+    preference:'soft',mode:'loop',miles:5,goal:60,terrain:'any',
+    data:null, selected:null, surfaceOn:true, loading:false
+  };
+  let map, streetTiles, satelliteTiles, startMarker, routeLines=[], surfaceLines=[], checkpoints=[], toastTimeout;
+  let searchSeq=0;
+
+  function toast(message, timeout=4000){
+    const node=$('toast');node.textContent=message;node.hidden=false;
+    window.clearTimeout(toastTimeout);toastTimeout=window.setTimeout(()=>node.hidden=true,timeout);
+  }
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function latLon(a){return `${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}`;}
+  function openTab(url){window.open(url,'_blank','noopener,noreferrer');}
+  function googleStreetUrl(a){const p=new URLSearchParams({api:'1',map_action:'pano',viewpoint:`${a.lat},${a.lon}`});return `https://www.google.com/maps/@?${p}`;}
+  function googleEarthUrl(a){return `https://earth.google.com/web/search/${encodeURIComponent(a.lat+','+a.lon)}`;}
+  function setStart(lat,lon,options={}){
+    if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -85||lat>85||lon < -180||lon >180)return;
+    state.start={lat,lon};state.inspect={lat,lon};
+    $('startCoords').textContent='START '+latLon(state.start);
+    if(startMarker)startMarker.setLatLng([lat,lon]);
+    if(map){map.panTo([lat,lon]);if(options.zoom)map.setZoom(options.zoom);}
+    if(options.label)$('locationInput').value=options.label;
+    else $('locationInput').value=latLon(state.start);
+    $('searchResults').hidden=true;
+    clearRoutes(true);
+  }
+  function initMap(){
+    if(typeof L==='undefined'){
+      const node=$('map');node.innerHTML='<div style="padding:38px;color:#24583c;background:#eaf2e9">The map library could not load. Please check your internet connection, then refresh.</div>';
+      toast('Map library is unavailable; check internet access.',6500);return;
+    }
+    map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([state.start.lat,state.start.lon],14);
+    streetTiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+      maxZoom:19,subdomains:'abcd',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+    satelliteTiles=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+      maxZoom:19,attribution:'Tiles &copy; Esri and imagery providers'
+    });
+    L.control.zoom({position:'topright'}).addTo(map);
+    startMarker=L.marker([state.start.lat,state.start.lon],{
+      icon:L.divIcon({className:'',html:'<div class="start-pin"></div>',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:1000
+    }).addTo(map).bindTooltip('Run starts here',{direction:'top',offset:[0,-8]});
+    map.on('click',e=>setStart(e.latlng.lat,e.latlng.lng));
+  }
+  function setLoading(isLoading){
+    state.loading=isLoading;
+    $('generateButton').disabled=isLoading;
+    $('generateButton').classList.toggle('is-loading',isLoading);
+    $('generateLabel').textContent=isLoading?'Finding your footing…':'Find my routes';
+  }
+  function clearMapLayers(arr){arr.forEach(layer=>map?.removeLayer(layer));arr.length=0;}
+  function clearRoutes(keepMessage=false){
+    state.data=null;state.selected=null;
+    if(map){clearMapLayers(routeLines);clearMapLayers(surfaceLines);clearMapLayers(checkpoints);}
+    $('routeDrawer').hidden=true;
+    $('surfaceCount').textContent='';
+    $('resultCount').textContent='0 FOUND';
+    if(!keepMessage)$('routeCards').innerHTML='<div class="empty-route"><div class="empty-icon">↗</div><strong>Made for your miles.</strong><p>Choose your surface, set your distance, and generate a route.</p></div>';
+  }
+  async function geocode(){
+    const q=$('locationInput').value.trim();if(!q)return;
+    const seq=++searchSeq;
+    $('locationSearch').disabled=true;
+    try{
+      let data;
+      if(window.SurfaceStrideAPI){data=await window.SurfaceStrideAPI.search(q);}
+      else {const response=await fetch(`/api/search?q=${encodeURIComponent(q)}`);data=await response.json();
+        if(!response.ok)throw new Error(data.detail||'Search failed');}
+      if(seq!==searchSeq)return;
+      const results=data.results||[];
+      if(results.length===0){toast('No locations found. Try coordinates or choose a point on the map.');return;}
+      if(results.length===1){setStart(results[0].lat,results[0].lon,{zoom:15,label:results[0].name});return;}
+      const box=$('searchResults');box.replaceChildren();
+      results.forEach(r=>{
+        const b=document.createElement('button');b.type='button';b.className='search-result';b.textContent=r.name;
+        b.addEventListener('click',()=>setStart(r.lat,r.lon,{zoom:15,label:r.name}));box.append(b);
+      });box.hidden=false;
+    }catch(err){toast(err.message||'Could not find location.',5500)}finally{$('locationSearch').disabled=false;}
+  }
+  async function generate(){
+    if(state.loading)return;
+    setLoading(true);clearRoutes();
+    $('routeCards').innerHTML='<div class="empty-route"><div class="empty-icon">◌</div><strong>Exploring nearby surfaces</strong><p>Finding connected paths and comparing route options using OpenStreetMap data. This can take a little while.</p></div>';
+    $('resultCount').textContent='SEARCHING';
+    const options={lat:state.start.lat,lon:state.start.lon,miles:state.miles,
+      preference:state.preference,mode:state.mode,goal_pct:state.goal,
+      avoid_traffic:$('avoidTraffic').checked,favor_tagged:$('favorTagged').checked,terrain:state.terrain};
+    try{
+      const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),115000);
+      let result;
+      try{
+        if(window.SurfaceStrideAPI){result=await window.SurfaceStrideAPI.plan(options);}
+        else {const response=await fetch('/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(options),signal:controller.signal});
+          result=await response.json();
+          if(!response.ok)throw new Error(result.detail||'Could not create routes.');}
+      }finally{window.clearTimeout(timer);}
+      if(result.routes?.length && window.SurfaceStrideElevation){
+        $('generateLabel').textContent='Checking terrain…';
+        $('routeCards').innerHTML='<div class="empty-route"><div class="empty-icon">⌁</div><strong>Estimating elevation</strong><p>Comparing climbs and gradients along possible routes. Surface routes will remain available if elevation data cannot be loaded.</p></div>';
+        result=await window.SurfaceStrideElevation.enrich(result,options);
+      }
+      state.data=result;
+      showSurfaceLayer();
+      if(result.routes.length===0){
+        $('routeCards').innerHTML=`<div class="route-error">${escapeHtml(result.warnings.join(' ')||'No suitable routes found. Try a shorter distance or a different start.')}</div>`;
+        $('resultCount').textContent='0 FOUND';
+        return;
+      }
+      renderRouteCards();selectRoute(0);
+      const elevated=result.routes.some(r=>r.elevation_status==='available');
+      toast(elevated?`Found ${result.routes.length} options with estimated elevation. Check surfaces before running.`:
+        'Routes found. Elevation is unavailable right now; surface and distance routing still work.',5700);
+    }catch(err){
+      const message=err.name==='AbortError'?'The surface-data request took too long. Try a shorter route or retry.':String(err.message||err);
+      $('routeCards').innerHTML=`<div class="route-error"><strong>Couldn't plan this run.</strong><br>${escapeHtml(message)}</div>`;
+      $('resultCount').textContent='NO RESULTS';
+      toast('Route generation failed. See details in the left panel.',4700);
+    }finally{setLoading(false);}
+  }
+  function surfaceBarHtml(percent){
+    const total=SURFACES.map(s=>Math.max(0,percent[s.id]||0));
+    const sum=total.reduce((a,b)=>a+b,0);
+    return SURFACES.map((s,i)=>`<span style="width:${sum ? (total[i]/sum*100):0}%;background:${s.color}" title="${s.label} ${total[i]}%"></span>`).join('');
+  }
+  function renderRouteCards(){
+    const routes=state.data?.routes||[];
+    $('resultCount').textContent=`${routes.length} FOUND`;
+    $('routeCards').innerHTML=routes.map((r,i)=>{
+      const phrase=state.preference==='mixed'?'surface mix':state.preference==='soft'?'soft surface':state.preference==='paved'?'paved surface':'gravel';
+      return `<button class="route-card ${state.selected===i?'is-selected':''}" type="button" data-route-index="${i}">
+        <span class="card-upper"><span><span class="route-kicker">OPTION ${String(i+1).padStart(2,'0')}</span><h3>${escapeHtml(r.title)}</h3></span><span class="card-mile">${r.distance_miles.toFixed(2)} <span>mi</span></span></span>
+        <span class="card-elevation">${r.elevation_status==='available'?`↗ ${r.elevation_gain_ft.toLocaleString()} ft gain · ${r.climb_ft_per_mile} ft/mi`:'Elevation unavailable'}</span>
+        <span class="mini-bar">${surfaceBarHtml(r.surface_percent)}</span>
+        <span class="card-meta"><span><b>${r.match_percent}%</b> ${escapeHtml(phrase)}</span><span>${r.tagged_percent}% explicitly tagged</span></span>
+      </button>`;
+    }).join('');
+    document.querySelectorAll('[data-route-index]').forEach(b=>b.addEventListener('click',()=>selectRoute(Number(b.dataset.routeIndex))));
+  }
+  function showSurfaceLayer(){
+    if(!map || !state.data)return;
+    clearMapLayers(surfaceLines);
+    $('surfaceCount').textContent=`${state.data.surface_ways.length} WAYS`;
+    if(!state.surfaceOn)return;
+    const group=L.layerGroup();
+    for(const feature of state.data.surface_ways){
+      const color=lookup[feature.surface]?.color||lookup.unknown.color;
+      const line=L.polyline(feature.coordinates,{color,weight:feature.evidence==='tagged'?3.7:2.0,
+        opacity:feature.evidence==='tagged'?.86:.38,interactive:true});
+      const evidence=feature.evidence==='tagged'?'Surface tagged in OSM':feature.evidence==='inferred'?'Inferred from way type; not confirmed':'Surface unclassified';
+      line.bindPopup(`<strong>${escapeHtml(feature.name)}</strong><br>Surface: ${escapeHtml(feature.surface)}${feature.raw_surface?' ('+escapeHtml(feature.raw_surface)+')':''}<br>${escapeHtml(evidence)}`);
+      line.addTo(group);
+    }
+    group.addTo(map);surfaceLines.push(group);
+  }
+  function selectRoute(index){
+    if(!map || !state.data || !state.data.routes[index])return;
+    state.selected=index;
+    renderRouteCards();
+    const r=state.data.routes[index];
+    clearMapLayers(routeLines);clearMapLayers(checkpoints);
+    const layers=L.layerGroup();
+    // Draw a heavy white halo for legibility, then color every span by OSM surface.
+    const halo=L.polyline(r.coordinates,{color:'#fff',weight:10,opacity:.96,interactive:false,lineJoin:'round'}).addTo(layers);
+    const polyline=L.polyline(r.coordinates,{color:'#1d6747',weight:6,opacity:.94,interactive:true,lineJoin:'round'}).addTo(layers);
+    polyline.on('click',e=>{
+      L.DomEvent.stopPropagation(e);
+      const p=e.latlng;state.inspect={lat:p.lat,lon:p.lng};
+      L.popup().setLatLng(p).setContent(`<strong>Inspect this part of the route</strong><br><a href="${googleStreetUrl(state.inspect)}" target="_blank" rel="noopener noreferrer">View in Google Street View ↗</a>`).openOn(map);
+    });
+    for(const span of r.spans){
+      L.polyline(span.points,{color:lookup[span.surface]?.color||'#aab1b8',weight:3.5,opacity:1,interactive:false}).addTo(layers);
+    }
+    layers.addTo(map);routeLines.push(layers);
+    const checkpointLayer=L.layerGroup();
+    r.checkpoints.forEach(cp=>{
+      L.marker([cp.lat,cp.lon],{
+        icon:L.divIcon({className:'',html:'<div class="checkpoint-pin"></div>',iconSize:[12,12],iconAnchor:[6,6]})
+      }).bindPopup(`<strong>${escapeHtml(cp.name)}</strong><br>Surface: ${escapeHtml(cp.surface)}<br>${escapeHtml(cp.evidence)}<br><a href="${googleStreetUrl(cp)}" target="_blank" rel="noopener noreferrer">Inspect in Google Street View ↗</a>`).addTo(checkpointLayer);
+    });
+    checkpointLayer.addTo(map);checkpoints.push(checkpointLayer);
+    const bounds=L.latLngBounds(r.coordinates);if(bounds.isValid())map.fitBounds(bounds.pad(.19),{animate:true,maxZoom:16});
+    populateDrawer(r,index);
+  }
+  function populateDrawer(r,index){
+    $('routeDrawer').hidden=false;
+    $('detailRouteNumber').textContent=String(index+1).padStart(2,'0');
+    $('detailTitle').textContent=r.title;
+    $('detailSubtitle').textContent=(r.mode==='loop'?'Loop':'Out & back')+' · '+r.distance_miles.toFixed(1)+' mile estimated';
+    $('detailMiles').textContent=r.distance_miles.toFixed(2);
+    $('surfaceBar').innerHTML=surfaceBarHtml(r.surface_percent);
+    $('surfacePercents').innerHTML=SURFACES.map(s=>{
+      const p=r.surface_percent[s.id]||0;
+      return `<div class="percent-item"><strong>${p.toFixed(1)}%</strong><span class="percent-label"><i style="background:${s.color}"></i>${s.label}</span></div>`;
+    }).join('');
+    $('confidenceText').textContent=`${r.tagged_percent}% surface-tagged · ${r.inferred_percent}% inferred`;
+    $('matchText').textContent=`${r.unknown_percent}% unknown`;
+    showElevation(r);
+    $('checkpointList').innerHTML=r.checkpoints.map((cp,i)=>{
+      const detail=cp.evidence==='tagged'?'tagged':cp.evidence==='inferred'?'inferred':'unclassified';
+      return `<button type="button" class="checkpoint" data-checkpoint="${i}">
+        <span class="checkpoint-num">${i+1}</span><span class="checkpoint-center"><strong>${escapeHtml(cp.name)}</strong><small>Mile ${cp.at_mile.toFixed(2)} · ${escapeHtml(cp.surface)} · ${detail}</small></span><span class="checkpoint-arrow">↗</span></button>`;
+    }).join('');
+    document.querySelectorAll('[data-checkpoint]').forEach(button=>button.addEventListener('click',()=>{
+      const cp=r.checkpoints[Number(button.dataset.checkpoint)];state.inspect={lat:cp.lat,lon:cp.lon};
+      // Checkpoints are deep links, not snapshots or scraped Google imagery.
+      openTab(googleStreetUrl(cp));
+    }));
+  }
+  function showElevation(route){
+    const container=$('elevationDetails');
+    if(route.elevation_status!=='available'||!route.elevation_profile?.length){
+      container.innerHTML='<p>Elevation could not be loaded. You can still use the surface route, map, and exports. Retry later for terrain estimates.</p>';
+      return;
+    }
+    const p=route.elevation_profile;
+    const vals=p.map(v=>v.elevation_ft),min=Math.min(...vals),max=Math.max(...vals);
+    const low=min-Math.max(8,(max-min)*.12),high=max+Math.max(8,(max-min)*.12);
+    const x=v=>16+288*v.mile/Math.max(.001,p[p.length-1].mile);
+    const y=v=>104-88*(v.elevation_ft-low)/Math.max(1,high-low);
+    const poly=p.map((v,i)=>`${i?'L':'M'}${x(v).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
+    const fill=`${poly} L${x(p[p.length-1]).toFixed(2)},104 L16,104 Z`;
+    container.innerHTML=`<div class="elevation-metrics">
+      <div class="elevation-metric"><strong>+${route.elevation_gain_ft.toLocaleString()} ft</strong><span>Total gain</span></div>
+      <div class="elevation-metric"><strong>−${route.elevation_loss_ft.toLocaleString()} ft</strong><span>Total loss</span></div>
+      <div class="elevation-metric"><strong>${route.max_grade_pct.toFixed(1)}%</strong><span>Steepest sampled grade</span></div>
+    </div>
+    <svg class="elevation-graph" id="elevationGraph" viewBox="0 0 320 120" role="img" aria-label="Elevation profile from mile zero to ${route.distance_miles.toFixed(1)}, elevation ${route.min_elevation_ft} to ${route.max_elevation_ft} feet">
+      <line x1="16" y1="104" x2="304" y2="104" stroke="#c8dbcb" stroke-width="1"/>
+      <line x1="16" y1="62" x2="304" y2="62" stroke="#e4eee4" stroke-width="1" stroke-dasharray="3 4"/>
+      <path d="${fill}" fill="#d6eeda" opacity="0.8"/>
+      <path d="${poly}" fill="none" stroke="#33885b" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+      <text x="16" y="116" font-size="9" fill="#82968a">0 mi</text>
+      <text x="304" y="116" text-anchor="end" font-size="9" fill="#82968a">${route.distance_miles.toFixed(1)} mi</text>
+      <text x="18" y="12" font-size="9" fill="#82968a">${Math.round(max)} ft peak</text>
+      <g class="profile-crosshair"><line id="elevationCrosshair" y1="14" y2="104" stroke="#3b8b61" stroke-dasharray="3 3" stroke-width="1"/><circle id="elevationDot" r="4" fill="#26764e" stroke="#fff" stroke-width="1.5"/></g>
+    </svg>
+    <div class="elevation-readout" id="elevationReadout"><span>Avg. grade ${route.average_grade_pct.toFixed(1)}% (absolute)</span><span>${route.climb_ft_per_mile} ft gain / mile</span></div>
+    <p class="elevation-note">Copernicus 90 m terrain model via Open-Meteo. Gain and grade are approximate, especially on bridges, tunnels, and short hills. Hover over the chart to inspect a point.</p>`;
+    const svg=$('elevationGraph'),cross=$('elevationCrosshair'),dot=$('elevationDot'),label=$('elevationReadout');
+    function inspect(event){
+      const bounds=svg.getBoundingClientRect();
+      const ratio=Math.max(0,Math.min(1,(event.clientX-bounds.left)/Math.max(1,bounds.width)));
+      const item=p[Math.min(p.length-1,Math.round(ratio*(p.length-1)))];
+      const xx=x(item),yy=y(item);
+      cross.setAttribute('x1',xx);cross.setAttribute('x2',xx);dot.setAttribute('cx',xx);dot.setAttribute('cy',yy);
+      label.innerHTML=`<span>Mile ${item.mile.toFixed(2)}</span><span>${Math.round(item.elevation_ft).toLocaleString()} ft · ${item.grade_pct>0?'+':''}${item.grade_pct.toFixed(1)}% grade</span>`;
+      svg.classList.add('is-hovered');
+    }
+    svg.addEventListener('pointermove',inspect);
+    svg.addEventListener('pointerleave',()=>{
+      svg.classList.remove('is-hovered');
+      label.innerHTML=`<span>Avg. grade ${route.average_grade_pct.toFixed(1)}% (absolute)</span><span>${route.climb_ft_per_mile} ft gain / mile</span>`;
+    });
+  }
+  function routeXml(r,type){
+    const escapedXml=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+    const name=escapedXml(`SurfaceStride ${r.distance_miles.toFixed(2)} mi ${r.mode}`);
+    const hasElevation=r.elevation_status==='available'&&r.elevation_profile?.length;
+    let running=0;
+    const vertices=r.coordinates.map((coord,i)=>{
+      if(i){const prev=r.coordinates[i-1],dx=(coord[0]-prev[0])*Math.PI/180,dy=(coord[1]-prev[1])*Math.PI/180;
+        const a=Math.sin(dx/2)**2+Math.cos(prev[0]*Math.PI/180)*Math.cos(coord[0]*Math.PI/180)*Math.sin(dy/2)**2;
+        running+=12742017.6*Math.asin(Math.min(1,Math.sqrt(a)));}
+      const elevation=hasElevation?window.SurfaceStrideElevation.interpolate(r.elevation_profile,running/1609.344):null;
+      return {lat:coord[0],lon:coord[1],elevation};
+    });
+    if(type==='gpx'){
+      const pts=vertices.map(p=>`    <trkpt lat="${p.lat}" lon="${p.lon}">${p.elevation===null?'':`<ele>${p.elevation.toFixed(1)}</ele>`}</trkpt>`).join('\n');
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="SurfaceStride" xmlns="http://www.topografix.com/GPX/1/1"><metadata><name>${name}</name></metadata><trk><name>${name}</name><trkseg>\n${pts}\n</trkseg></trk></gpx>`;
+    }
+    const coords=vertices.map(p=>`${p.lon},${p.lat}${p.elevation!==null?','+p.elevation.toFixed(1):''}`).join(' ');
+    const details=hasElevation?`Estimated elevation gain: ${r.elevation_gain_ft} ft; loss: ${r.elevation_loss_ft} ft. Source: Copernicus DEM via Open-Meteo. `:'';
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${name}</name><description>${details}Running route estimated from OpenStreetMap surface tags; verify before use.</description><Placemark><name>${name}</name><Style><LineStyle><color>ff478a38</color><width>4</width></LineStyle></Style><LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><coordinates>${coords}</coordinates></LineString></Placemark></Document></kml>`;
+  }
+  function exportRoute(type){
+    const r=state.data?.routes[state.selected];if(!r)return;
+    const blob=new Blob([routeXml(r,type)],{type:type==='gpx'?'application/gpx+xml':'application/vnd.google-earth.kml+xml'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`surfacestride-${r.distance_miles.toFixed(2)}mi.${type}`;
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+    if(type==='kml')toast('KML downloaded. Import it into Google Earth to view the full route.',5600);
+  }
+  function wireControls(){
+    document.querySelectorAll('[data-surface]').forEach(b=>b.addEventListener('click',()=>{
+      document.querySelectorAll('[data-surface]').forEach(n=>{n.classList.toggle('is-selected',n===b);n.setAttribute('aria-pressed',String(n===b));});
+      state.preference=b.dataset.surface;
+      $('goalRange').disabled=state.preference==='mixed';
+      $('goalRange').style.opacity=state.preference==='mixed'?.35:1;
+    }));
+    document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{
+      document.querySelectorAll('[data-mode]').forEach(n=>{n.classList.toggle('is-selected',n===b);n.setAttribute('aria-pressed',String(n===b));});state.mode=b.dataset.mode;
+    }));
+    document.querySelectorAll('[data-terrain]').forEach(b=>b.addEventListener('click',()=>{
+      document.querySelectorAll('[data-terrain]').forEach(n=>{n.classList.toggle('is-selected',n===b);n.setAttribute('aria-pressed',String(n===b));});
+      state.terrain=b.dataset.terrain;
+    }));
+    $('distanceRange').addEventListener('input',e=>{
+      state.miles=Number(e.target.value);$('distanceValue').textContent=state.miles.toFixed(1);
+      $('distanceKm').textContent=(state.miles*1.609344).toFixed(1)+' km';
+    });
+    $('goalRange').addEventListener('input',e=>{state.goal=Number(e.target.value);$('goalValue').textContent=state.goal+'%';});
+    $('locationInput').addEventListener('keydown',e=>{if(e.key==='Enter')geocode();});
+    $('locationSearch').addEventListener('click',geocode);
+    $('generateButton').addEventListener('click',generate);
+    $('myLocation').addEventListener('click',()=>{
+      if(!navigator.geolocation){toast('This browser does not support location access.');return;}
+      navigator.geolocation.getCurrentPosition(pos=>setStart(pos.coords.latitude,pos.coords.longitude,{zoom:15}),
+        ()=>toast('Could not access your location. Use map click or search instead.'),{enableHighAccuracy:true,timeout:12000});
+    });
+    document.querySelectorAll('[data-layer]').forEach(b=>b.addEventListener('click',()=>{
+      if(!map)return;
+      const satellite=b.dataset.layer==='satellite';
+      if(satellite){map.removeLayer(streetTiles);satelliteTiles.addTo(map);}else{map.removeLayer(satelliteTiles);streetTiles.addTo(map);}
+      // Bring data layers back to the front when changing the base map.
+      surfaceLines.forEach(layer=>layer.bringToFront?.());routeLines.forEach(layer=>layer.bringToFront?.());
+      document.querySelectorAll('[data-layer]').forEach(n=>{n.classList.toggle('is-selected',n===b);n.setAttribute('aria-pressed',String(n===b));});
+    }));
+    $('surfaceOverlayToggle').addEventListener('click',()=>{
+      state.surfaceOn=!state.surfaceOn;
+      $('surfaceOverlayToggle').classList.toggle('is-active',state.surfaceOn);
+      $('surfaceOverlayToggle').setAttribute('aria-pressed',String(state.surfaceOn));
+      showSurfaceLayer();routeLines.forEach(group=>group.eachLayer(layer=>layer.bringToFront?.()));
+    });
+    $('earthButton').addEventListener('click',()=>openTab(googleEarthUrl(state.start)));
+    $('streetViewButton').addEventListener('click',()=>openTab(googleStreetUrl(state.inspect)));
+    $('closeDrawer').addEventListener('click',()=>{$('routeDrawer').hidden=true;});
+    $('gpxButton').addEventListener('click',()=>exportRoute('gpx'));
+    $('kmlButton').addEventListener('click',()=>exportRoute('kml'));
+    $('infoButton').addEventListener('click',()=>$('infoDialog').showModal());
+  }
+  initMap();wireControls();
+})();
+
+</script>
+</body>
+</html>
