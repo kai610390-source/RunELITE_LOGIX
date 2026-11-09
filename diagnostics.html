@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SurfaceStride · Connection Check</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#204534;background:#f4f8f4}
+*{box-sizing:border-box}body{margin:0;padding:32px 16px}.wrap{max-width:760px;margin:auto}
+h1{font-size:31px;margin:7px 0}h2{font-size:17px}.lead{color:#698073;line-height:1.6;margin-bottom:24px}
+a{color:#207a50}button{background:#205f44;border:0;border-radius:9px;padding:11px 15px;color:white;font:650 13px system-ui;cursor:pointer;margin:0 8px 12px 0}
+button.secondary{background:white;color:#275840;border:1px solid #b9d3c3}
+.card{border:1px solid #d7e4d9;border-radius:12px;background:#fff;margin:11px 0;padding:15px 17px}
+.row{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}.left{max-width:83%}
+.name{font-weight:750}.hint{font-size:12px;line-height:1.5;color:#718579;margin-top:5px}
+.state{font-size:11px;border-radius:99px;padding:5px 9px;color:#476b55;background:#e8f2eb;white-space:nowrap}
+.state.ok{background:#def5e5;color:#227041}.state.bad{background:#fae8e6;color:#a23c30}.state.wait{background:#f6f0df;color:#8a6c2a}
+code{word-break:break-all;background:#eaf3ea;padding:3px 5px;border-radius:5px}
+.small{color:#738679;font-size:12px;line-height:1.6}
+</style>
+</head>
+<body><main class="wrap">
+<p class="small"><a href="./">← Back to SurfaceStride</a></p>
+<h1>SurfaceStride connection check</h1>
+<p class="lead">This page tests what your browser can access. No Python, downloads, account setup, or location permission needed. All tests use a fixed public sample location in Austin, not your own location.</p>
+<button id="start">Run checks</button><button id="copy" class="secondary">Copy results</button>
+<div id="checks"></div>
+<p class="small">A successful test means a service responded; it does not guarantee route quality. Aerial-image tests also check that your browser can read image pixels, which the experimental trail scanner needs. If the whole website does not open, go to <a href="https://github.com/kai610390-source/RunELITE_LOGIX/settings/pages">GitHub Pages settings</a> and ensure source = Deploy from a branch, branch = gh-pages, folder = / (root).</p>
+</main>
+<script>
+'use strict';
+const root=document.getElementById('checks'),item=[];
+const diagnostics=[
+['Site script','Checks whether the Satellite Scout code is actually published.',async()=>{
+ const r=await fetch('./scout.js?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);
+ const t=await r.text();if(!t.includes('SurfaceStrideScout'))throw Error('Invalid script response');return 'Scout script available ('+t.length+' characters).';
+}],
+['Leaflet maps','Checks the map library used by the main app.',async()=>{
+ const r=await fetch('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',{mode:'cors',cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return 'Map library accessible.';
+}],
+['OpenStreetMap route data','Checks Overpass, which supplies paths and surface tags.',async()=>{
+ const params=new URLSearchParams({data:'[out:json][timeout:12];way["highway"="footway"](around:120,30.2849,-97.734);out body 1;'});
+ let last=null;for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){
+   try{const r=await fetch(host,{method:'POST',body:params});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!Array.isArray(j.elements))throw Error('Invalid OSM response');return 'OSM way data returned.';}
+   catch(e){last=e;}
+ }throw Error('Both route servers failed: '+(last?.message||last));
+}],
+['Elevation','Checks the no-key elevation provider.',async()=>{
+ const r=await fetch('https://api.open-meteo.com/v1/elevation?latitude=30.2849&longitude=-97.734');if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!j.elevation?.length)throw Error('No height data');return 'Elevation '+j.elevation[0]+' m received.';
+}],
+['NAIP aerial image access','Tests the public USGS/USDA image service required by Satellite Scout.',async()=>{
+ const r=6378137,lon=-97.734*Math.PI/180,lat=30.2849*Math.PI/180;
+ const x=r*lon,y=r*Math.log(Math.tan(Math.PI/4+lat/2));
+ const q=new URLSearchParams({bbox:[x-90,y-90,x+90,y+90].map(v=>v.toFixed(1)).join(','),bboxSR:'3857',imageSR:'3857',size:'128,128',format:'jpg',f:'image'});
+ const url='https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage?'+q;
+ const img=await new Promise((resolve,reject)=>{
+  const i=new Image();i.crossOrigin='anonymous';i.onload=()=>resolve(i);i.onerror=()=>reject(Error('Image blocked or unavailable'));i.src=url;
+ });
+ const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;const ctx=canvas.getContext('2d');
+ ctx.drawImage(img,0,0,128,128);try{ctx.getImageData(0,0,1,1);}catch(e){throw Error('Image loads but pixels cannot be read (CORS).');}
+ return 'Aerial image and pixel access work.';
+}],
+['Satellite map tiles','Checks whether satellite tiles appear as map imagery.',async()=>{
+ await new Promise((resolve,reject)=>{const img=new Image();img.onload=resolve;img.onerror=()=>reject(Error('Satellite tile blocked'));img.src='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/9/198/117';});
+ return 'Satellite map tile accessible.';
+}]
+];
+function timeout(task,ms=18000){return Promise.race([task,new Promise((_,reject)=>setTimeout(()=>reject(Error('Timed out ('+ms/1000+'s)')),ms))]);}
+function build(){
+ root.replaceChildren();diagnostics.forEach(([name,desc])=>{
+  const card=document.createElement('div');card.className='card';
+  const row=document.createElement('div');row.className='row';
+  const left=document.createElement('div');left.className='left';
+  const title=document.createElement('div');title.className='name';title.textContent=name;
+  const hint=document.createElement('div');hint.className='hint';hint.textContent=desc;
+  const state=document.createElement('span');state.className='state';state.textContent='Not checked';
+  left.append(title,hint);row.append(left,state);card.append(row);root.append(card);
+  item.push({name,state,hint,result:'Not checked'});
+ });
+}
+async function checkAll(){
+ document.getElementById('start').disabled=true;
+ const jobs=diagnostics.map(async ([name,desc,fn],i)=>{
+   const it=item[i];it.state.className='state wait';it.state.textContent='Checking';
+   try{const result=await timeout(fn(),18000);it.result='OK: '+result;it.state.textContent='Works';it.state.className='state ok';it.hint.textContent=result;}
+   catch(e){it.result='FAILED: '+(e?.message||e);it.state.textContent='Failed';it.state.className='state bad';it.hint.textContent=it.result+' · '+desc;}
+ });
+ await Promise.all(jobs);document.getElementById('start').disabled=false;
+}
+document.getElementById('start').addEventListener('click',checkAll);
+document.getElementById('copy').addEventListener('click',async()=>{
+ const text='SurfaceStride browser check\nURL: '+location.href+'\n'+item.map(x=>x.name+': '+x.result).join('\n');
+ try{await navigator.clipboard.writeText(text);document.getElementById('copy').textContent='Copied!';}
+ catch(e){prompt('Copy these results:',text);}
+});
+build();
+</script></body></html>
