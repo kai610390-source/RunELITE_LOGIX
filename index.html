@@ -140,7 +140,7 @@
         </div>
         <div class="map-google-links">
           <button type="button" id="earthButton" title="View the location in Google Earth">View in Google Earth <span>↗</span></button>
-          <button type="button" id="streetViewButton" title="Open Google Street View at selected point">Street View <span>↗</span></button>
+          <button type="button" id="streetViewButton" title="Inspect selected route position in Instant Street View">Instant Street View <span>↗</span></button>
         </div>
         <div class="map-instruction"><span class="pin-mini">●</span> Pan the map or search an area · no starting address needed</div>
         <div class="surface-legend" aria-label="Surface legend">
@@ -159,7 +159,7 @@
           <div class="confidence-row"><span id="confidenceText"></span><span id="matchText"></span></div>
           <div class="drawer-subheading elevation-heading">ELEVATION PROFILE <span>ESTIMATED TERRAIN</span></div>
           <div id="elevationDetails" class="elevation-details" aria-live="polite"><p>Elevation is calculated after routes are found.</p></div>
-          <div class="drawer-subheading">CHECK THE SURFACE <span>GOOGLE STREET VIEW ↗</span></div>
+          <div class="drawer-subheading">CHECK THE SURFACE <span>INSTANT STREET VIEW ↗</span></div>
           <div id="checkpointList" class="checkpoints"></div>
           <div class="export-buttons"><button type="button" id="gpxButton">↓ GPX for your watch</button><button type="button" id="kmlButton">↓ KML for Google Earth</button></div>
         </div>
@@ -168,7 +168,7 @@
     </div>
   </div>
 
-  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p><strong>Experimental Satellite Scout</strong> inspects a small area of USGS/USDA NAIP public-domain aerial imagery to propose narrow, pale linear features. They could be paths, farm tracks, drainage, roofs, or other structures. Imagery cannot prove gravel surface, safe access, or an open path. Suggestions must be user-reviewed and can join mapped routes only when endpoints are within 10 meters of an existing walkable mapped segment. This proximity is not proof of a safe connection. Manual tracing is available when aerial scanning fails.</p><p><strong>Connect small gravel paths</strong> searches for short gravel-tagged ways, gravel-like tracktype=grade2 ways, and informal footpaths, then uses connected mapped roads and trails to link them. Tracktype inference isn't a visual surface confirmation. This does not detect paths missing entirely from OpenStreetMap, and it does not invent shortcuts across unverified land. Access-restricted paths are excluded unless pedestrian access is explicitly permitted.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
+  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or open <strong>Instant Street View</strong> at checkpoints to inspect surfaces yourself where street-level coverage exists. Instant Street View is a viewer, not an image-analysis or routing API. The app does <strong>not</strong> scrape its images or automatically classify them.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p><strong>Experimental Satellite Scout</strong> inspects a small area of USGS/USDA NAIP public-domain aerial imagery to propose narrow, pale linear features. They could be paths, farm tracks, drainage, roofs, or other structures. Imagery cannot prove gravel surface, safe access, or an open path. Suggestions must be user-reviewed and can join mapped routes only when endpoints are within 10 meters of an existing walkable mapped segment. This proximity is not proof of a safe connection. Manual tracing is available when aerial scanning fails.</p><p><strong>Connect small gravel paths</strong> searches for short gravel-tagged ways, gravel-like tracktype=grade2 ways, and informal footpaths, then uses connected mapped roads and trails to link them. Tracktype inference isn't a visual surface confirmation. This does not detect paths missing entirely from OpenStreetMap, and it does not invent shortcuts across unverified land. Access-restricted paths are excluded unless pedestrian access is explicitly permitted.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
 /* Terrain elevation from the Open-Meteo public 90 m Copernicus DEM.
@@ -762,7 +762,7 @@
   }
   function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function openTab(url){window.open(url,'_blank','noopener,noreferrer');}
-  function googleStreetUrl(a){const p=new URLSearchParams({api:'1',map_action:'pano',viewpoint:`${a.lat},${a.lon}`});return `https://www.google.com/maps/@?${p}`;}
+  function instantStreetUrl(a){return `https://www.instantstreetview.com/s/${Number(a.lat).toFixed(6)},${Number(a.lon).toFixed(6)}`;}
   function googleEarthUrl(a){return `https://earth.google.com/web/search/${encodeURIComponent(a.lat+','+a.lon)}`;}
   function setArea(lat,lon,options={}){
     if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -85||lat>85||lon < -180||lon >180)return;
@@ -918,7 +918,7 @@
     polyline.on('click',e=>{
       L.DomEvent.stopPropagation(e);
       const p=e.latlng;state.inspect={lat:p.lat,lon:p.lng};
-      L.popup().setLatLng(p).setContent(`<strong>Inspect this part of the route</strong><br><a href="${googleStreetUrl(state.inspect)}" target="_blank" rel="noopener noreferrer">View in Google Street View ↗</a>`).openOn(map);
+      L.popup().setLatLng(p).setContent(`<strong>Inspect this part of the route</strong><br><a href="${instantStreetUrl(state.inspect)}" target="_blank" rel="noopener noreferrer">Open in Instant Street View ↗</a>`).openOn(map);
     });
     for(const span of r.spans){
       L.polyline(span.points,{color:lookup[span.surface]?.color||'#aab1b8',weight:3.5,opacity:1,interactive:false}).addTo(layers);
@@ -928,7 +928,7 @@
     r.checkpoints.forEach(cp=>{
       L.marker([cp.lat,cp.lon],{
         icon:L.divIcon({className:'',html:'<div class="checkpoint-pin"></div>',iconSize:[12,12],iconAnchor:[6,6]})
-      }).bindPopup(`<strong>${escapeHtml(cp.name)}</strong><br>Surface: ${escapeHtml(cp.surface)}<br>${escapeHtml(cp.evidence)}<br><a href="${googleStreetUrl(cp)}" target="_blank" rel="noopener noreferrer">Inspect in Google Street View ↗</a>`).addTo(checkpointLayer);
+      }).bindPopup(`<strong>${escapeHtml(cp.name)}</strong><br>Surface: ${escapeHtml(cp.surface)}<br>${escapeHtml(cp.evidence)}<br><a href="${instantStreetUrl(cp)}" target="_blank" rel="noopener noreferrer">Inspect in Instant Street View ↗</a>`).addTo(checkpointLayer);
     });
     checkpointLayer.addTo(map);checkpoints.push(checkpointLayer);
     const bounds=L.latLngBounds(r.coordinates);if(bounds.isValid())map.fitBounds(bounds.pad(.19),{animate:true,maxZoom:16});
@@ -958,7 +958,7 @@
     document.querySelectorAll('[data-checkpoint]').forEach(button=>button.addEventListener('click',()=>{
       const cp=r.checkpoints[Number(button.dataset.checkpoint)];state.inspect={lat:cp.lat,lon:cp.lon};
       // Checkpoints are deep links, not snapshots or scraped Google imagery.
-      openTab(googleStreetUrl(cp));
+      openTab(instantStreetUrl(cp));
     }));
   }
   function showElevation(route){
@@ -1073,7 +1073,7 @@
       showSurfaceLayer();routeLines.forEach(group=>group.eachLayer(layer=>layer.bringToFront?.()));
     });
     $('earthButton').addEventListener('click',()=>openTab(googleEarthUrl(map?map.getCenter():state.area)));
-    $('streetViewButton').addEventListener('click',()=>openTab(googleStreetUrl(state.selected===null&&map?map.getCenter():state.inspect)));
+    $('streetViewButton').addEventListener('click',()=>openTab(instantStreetUrl(state.selected===null&&map?map.getCenter():state.inspect)));
     $('closeDrawer').addEventListener('click',()=>{$('routeDrawer').hidden=true;});
     $('gpxButton').addEventListener('click',()=>exportRoute('gpx'));
     $('kmlButton').addEventListener('click',()=>exportRoute('kml'));

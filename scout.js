@@ -206,7 +206,7 @@
     var street=button('streetview','Inspect in Instant Street View');
     street.addEventListener('click',function(){
       var c=map.getCenter();
-      window.open('https://www.instantstreetview.com/@'+c.lat.toFixed(6)+','+c.lng.toFixed(6)+',0h,0p,1z','_blank','noopener,noreferrer');
+      window.open('https://www.instantstreetview.com/s/'+c.lat.toFixed(6)+','+c.lng.toFixed(6),'_blank','noopener,noreferrer');
     });
     buttons.append(scanButton,traceButton,finishButton,street);
     launcher.addEventListener('click',function(){panel.hidden=!panel.hidden;launcher.textContent=panel.hidden?'Satellite Scout ◇':'Close Satellite Scout ×';});
