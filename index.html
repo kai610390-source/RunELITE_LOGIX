@@ -70,15 +70,14 @@
         </div>
 
         <section class="section location-section">
-          <div class="section-heading"><span class="step">01</span><h2>Your starting point</h2></div>
+          <div class="section-heading"><span class="step">01</span><h2>Explore an area <small style="font-weight:500;color:#8d9c91">(optional)</small></h2></div>
           <div class="search-box">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <input id="locationInput" placeholder="Place, address, or coordinates" autocomplete="off" aria-label="Location" value="University of Texas, Austin" />
+            <input id="locationInput" placeholder="City, neighborhood, or park (optional)" autocomplete="off" aria-label="Search an area (optional)" value="" />
             <button id="locationSearch" type="button" title="Search for location" aria-label="Search location">↵</button>
           </div>
           <div id="searchResults" class="search-results" hidden></div>
-          <div class="loc-hint"><button id="myLocation" type="button" class="tiny-action"><span class="crosshair">⊙</span> Use my location</button><span class="divider-dot">·</span><span>or click anywhere on the map</span></div>
-          <div class="start-coords" id="startCoords">START 30.28490, -97.73400</div>
+          <div class="loc-hint">Move the map to the area you want to explore. SurfaceStride will pick a suitable route start automatically.</div>
         </section>
 
         <section class="section surface-section">
@@ -124,7 +123,7 @@
 
         <section id="routesSection" class="routes-section" aria-live="polite">
           <div class="results-head"><span class="eyebrow"><span class="line"></span> YOUR ROUTES</span><span id="resultCount" class="results-count">0 FOUND</span></div>
-          <div id="routeCards" class="route-cards"><div class="empty-route"><div class="empty-icon">↗</div><strong>Made for your miles.</strong><p>Choose your surface, set your distance, and generate a route.</p></div></div>
+          <div id="routeCards" class="route-cards"><div class="empty-route"><div class="empty-icon">↗</div><strong>Made for your miles.</strong><p>Explore any area on the map, choose your surface and distance, then generate routes. No starting point needed.</p></div></div>
         </section>
       </aside>
 
@@ -141,7 +140,7 @@
           <button type="button" id="earthButton" title="View the location in Google Earth">View in Google Earth <span>↗</span></button>
           <button type="button" id="streetViewButton" title="Open Google Street View at selected point">Street View <span>↗</span></button>
         </div>
-        <div class="map-instruction"><span class="pin-mini">●</span> Click map to move your starting point</div>
+        <div class="map-instruction"><span class="pin-mini">●</span> Pan the map or search an area · no starting address needed</div>
         <div class="surface-legend" aria-label="Surface legend">
           <div class="legend-heading">SURFACE KEY <span id="surfaceCount"></span></div>
           <div class="legend-items"><span><i style="background:#429b5d"></i>Grass</span><span><i style="background:#a46b45"></i>Dirt</span><span><i style="background:#ca9a55"></i>Gravel</span><span><i style="background:#66737c"></i>Paved</span><span><i style="background:#b66896"></i>Track</span><span><i style="background:#aab1b8"></i>Unknown</span></div>
@@ -167,7 +166,7 @@
     </div>
   </div>
 
-  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
+  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
 /* Terrain elevation from the Open-Meteo public 90 m Copernicus DEM.
@@ -399,13 +398,13 @@
     arr.sort((a,b)=>a[0]-b[0]);
     if(!arr.length)throw new Error('No mapped pedestrian paths at this location.');
     const visited=new Set();let picked=null;
-    for(const [ds,id] of arr.slice(0,90)){
-      if(ds>800*800)break;
+    for(const [ds,id] of arr.slice(0,220)){
+      if(ds>1300*1300)break;
       if(visited.has(id))continue;
       const group=component(net,id);for(const n of group)visited.add(n);
       if(group.size>=12){picked={start:id,offset:Math.sqrt(ds),group};break;}
     }
-    if(!picked)throw new Error('No connected walking network close to this starting point. Try moving the map pin.');
+    if(!picked)throw new Error('No connected walking paths near the visible map area. Pan to another area and try again.');
     picked.nodeIds=Array.from(picked.group);
     return picked;
   }
@@ -536,7 +535,7 @@
     return {routes:chosen.map((c,i)=>({...c.item,id:i+1,title:i===0?'Best match':`Alternative ${i+1}`,
       match_percent:Math.min(100,Math.round(liked.reduce((n,k)=>n+(c.item.surface_percent[k]||0),0)))})),
       network_nodes:nodeIds.length,start:origin,requested_start:{lat:opts.lat,lon:opts.lon},
-      warnings:candidates.length?[]:['No matching routes found. Try a shorter distance or different start.'],
+      warnings:candidates.length?[]:['No matching routes found. Try a shorter distance or explore another area.'],
       surface_ways:overlay(net,opts.lat,opts.lon),source:'OpenStreetMap / Overpass (browser mode)',
       surface_note:'Surface data may be unknown or inferred; check in person.'};
   }
@@ -598,12 +597,12 @@
   const lookup = Object.fromEntries(SURFACES.map(s=>[s.id,s]));
   const $ = id => document.getElementById(id);
   const state = {
-    start:{lat:30.28490,lon:-97.73400},
+    area:{lat:30.28490,lon:-97.73400},
     inspect:{lat:30.28490,lon:-97.73400},
     preference:'soft',mode:'loop',miles:5,goal:60,terrain:'any',
     data:null, selected:null, surfaceOn:true, loading:false
   };
-  let map, streetTiles, satelliteTiles, startMarker, routeLines=[], surfaceLines=[], checkpoints=[], toastTimeout;
+  let map, streetTiles, satelliteTiles, routeLines=[], surfaceLines=[], checkpoints=[], toastTimeout;
   let searchSeq=0;
 
   function toast(message, timeout=4000){
@@ -611,18 +610,14 @@
     window.clearTimeout(toastTimeout);toastTimeout=window.setTimeout(()=>node.hidden=true,timeout);
   }
   function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function latLon(a){return `${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}`;}
   function openTab(url){window.open(url,'_blank','noopener,noreferrer');}
   function googleStreetUrl(a){const p=new URLSearchParams({api:'1',map_action:'pano',viewpoint:`${a.lat},${a.lon}`});return `https://www.google.com/maps/@?${p}`;}
   function googleEarthUrl(a){return `https://earth.google.com/web/search/${encodeURIComponent(a.lat+','+a.lon)}`;}
-  function setStart(lat,lon,options={}){
+  function setArea(lat,lon,options={}){
     if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -85||lat>85||lon < -180||lon >180)return;
-    state.start={lat,lon};state.inspect={lat,lon};
-    $('startCoords').textContent='START '+latLon(state.start);
-    if(startMarker)startMarker.setLatLng([lat,lon]);
+    state.area={lat,lon};state.inspect={lat,lon};
     if(map){map.panTo([lat,lon]);if(options.zoom)map.setZoom(options.zoom);}
-    if(options.label)$('locationInput').value=options.label;
-    else $('locationInput').value=latLon(state.start);
+    $('locationInput').value=options.label||'';
     $('searchResults').hidden=true;
     clearRoutes(true);
   }
@@ -631,7 +626,7 @@
       const node=$('map');node.innerHTML='<div style="padding:38px;color:#24583c;background:#eaf2e9">The map library could not load. Please check your internet connection, then refresh.</div>';
       toast('Map library is unavailable; check internet access.',6500);return;
     }
-    map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([state.start.lat,state.start.lon],14);
+    map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([state.area.lat,state.area.lon],14);
     streetTiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
       maxZoom:19,subdomains:'abcd',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }).addTo(map);
@@ -639,10 +634,7 @@
       maxZoom:19,attribution:'Tiles &copy; Esri and imagery providers'
     });
     L.control.zoom({position:'topright'}).addTo(map);
-    startMarker=L.marker([state.start.lat,state.start.lon],{
-      icon:L.divIcon({className:'',html:'<div class="start-pin"></div>',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:1000
-    }).addTo(map).bindTooltip('Run starts here',{direction:'top',offset:[0,-8]});
-    map.on('click',e=>setStart(e.latlng.lat,e.latlng.lng));
+    map.on('click',e=>setArea(e.latlng.lat,e.latlng.lng));
   }
   function setLoading(isLoading){
     state.loading=isLoading;
@@ -657,7 +649,7 @@
     $('routeDrawer').hidden=true;
     $('surfaceCount').textContent='';
     $('resultCount').textContent='0 FOUND';
-    if(!keepMessage)$('routeCards').innerHTML='<div class="empty-route"><div class="empty-icon">↗</div><strong>Made for your miles.</strong><p>Choose your surface, set your distance, and generate a route.</p></div>';
+    if(!keepMessage)$('routeCards').innerHTML='<div class="empty-route"><div class="empty-icon">↗</div><strong>Made for your miles.</strong><p>Explore any area on the map, choose your surface and distance, then generate routes. No starting point needed.</p></div>';
   }
   async function geocode(){
     const q=$('locationInput').value.trim();if(!q)return;
@@ -671,11 +663,11 @@
       if(seq!==searchSeq)return;
       const results=data.results||[];
       if(results.length===0){toast('No locations found. Try coordinates or choose a point on the map.');return;}
-      if(results.length===1){setStart(results[0].lat,results[0].lon,{zoom:15,label:results[0].name});return;}
+      if(results.length===1){setArea(results[0].lat,results[0].lon,{zoom:15,label:results[0].name});return;}
       const box=$('searchResults');box.replaceChildren();
       results.forEach(r=>{
         const b=document.createElement('button');b.type='button';b.className='search-result';b.textContent=r.name;
-        b.addEventListener('click',()=>setStart(r.lat,r.lon,{zoom:15,label:r.name}));box.append(b);
+        b.addEventListener('click',()=>setArea(r.lat,r.lon,{zoom:15,label:r.name}));box.append(b);
       });box.hidden=false;
     }catch(err){toast(err.message||'Could not find location.',5500)}finally{$('locationSearch').disabled=false;}
   }
@@ -684,7 +676,9 @@
     setLoading(true);clearRoutes();
     $('routeCards').innerHTML='<div class="empty-route"><div class="empty-icon">◌</div><strong>Exploring nearby surfaces</strong><p>Finding connected paths and comparing route options using OpenStreetMap data. This can take a little while.</p></div>';
     $('resultCount').textContent='SEARCHING';
-    const options={lat:state.start.lat,lon:state.start.lon,miles:state.miles,
+    // Plan around the visible map area; routing automatically selects a start.
+    if(map){const center=map.getCenter();state.area={lat:center.lat,lon:center.lng};}
+    const options={lat:state.area.lat,lon:state.area.lon,miles:state.miles,
       preference:state.preference,mode:state.mode,goal_pct:state.goal,
       avoid_traffic:$('avoidTraffic').checked,favor_tagged:$('favorTagged').checked,terrain:state.terrain};
     try{
@@ -704,7 +698,7 @@
       state.data=result;
       showSurfaceLayer();
       if(result.routes.length===0){
-        $('routeCards').innerHTML=`<div class="route-error">${escapeHtml(result.warnings.join(' ')||'No suitable routes found. Try a shorter distance or a different start.')}</div>`;
+        $('routeCards').innerHTML=`<div class="route-error">${escapeHtml(result.warnings.join(' ')||'No suitable routes found. Try a shorter distance or another area.')}</div>`;
         $('resultCount').textContent='0 FOUND';
         return;
       }
@@ -904,11 +898,6 @@
     $('locationInput').addEventListener('keydown',e=>{if(e.key==='Enter')geocode();});
     $('locationSearch').addEventListener('click',geocode);
     $('generateButton').addEventListener('click',generate);
-    $('myLocation').addEventListener('click',()=>{
-      if(!navigator.geolocation){toast('This browser does not support location access.');return;}
-      navigator.geolocation.getCurrentPosition(pos=>setStart(pos.coords.latitude,pos.coords.longitude,{zoom:15}),
-        ()=>toast('Could not access your location. Use map click or search instead.'),{enableHighAccuracy:true,timeout:12000});
-    });
     document.querySelectorAll('[data-layer]').forEach(b=>b.addEventListener('click',()=>{
       if(!map)return;
       const satellite=b.dataset.layer==='satellite';
@@ -923,8 +912,8 @@
       $('surfaceOverlayToggle').setAttribute('aria-pressed',String(state.surfaceOn));
       showSurfaceLayer();routeLines.forEach(group=>group.eachLayer(layer=>layer.bringToFront?.()));
     });
-    $('earthButton').addEventListener('click',()=>openTab(googleEarthUrl(state.start)));
-    $('streetViewButton').addEventListener('click',()=>openTab(googleStreetUrl(state.inspect)));
+    $('earthButton').addEventListener('click',()=>openTab(googleEarthUrl(map?map.getCenter():state.area)));
+    $('streetViewButton').addEventListener('click',()=>openTab(googleStreetUrl(state.selected===null&&map?map.getCenter():state.inspect)));
     $('closeDrawer').addEventListener('click',()=>{$('routeDrawer').hidden=true;});
     $('gpxButton').addEventListener('click',()=>exportRoute('gpx'));
     $('kmlButton').addEventListener('click',()=>exportRoute('kml'));
