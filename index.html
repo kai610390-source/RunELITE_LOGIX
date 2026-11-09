@@ -649,8 +649,9 @@
     return {routes:chosen.map((c,i)=>({...c.item,id:i+1,title:i===0?'Best match':`Alternative ${i+1}`,
       match_percent:Math.min(100,Math.round(liked.reduce((n,k)=>n+(c.item.surface_percent[k]||0),0)))})),
       network_nodes:nodeIds.length,start:origin,requested_start:{lat:opts.lat,lon:opts.lon},
-      warnings:candidates.length?[]:['No matching routes found. Try a shorter distance or explore another area.'],
+      warnings:candidates.length?(net.limited_coverage?['Small map area only.']:[]):[net.limited_coverage?'A small map area loaded, but no matching route was found. Try a shorter distance or retry when Overpass works.':'No matching routes found. Try a shorter distance or explore another area.'],
       surface_ways:overlay(net,opts.lat,opts.lon),reviewed_connected:net.reviewedCount||0,
+      data_provider:net.source_name||'OSM',limited_coverage:!!net.limited_coverage,
       source:'OpenStreetMap / Overpass + optional reviewed aerial candidates',
       surface_note:'Surface data may be unknown or inferred; check in person.'};
   }
@@ -660,24 +661,58 @@
     const types='footway|path|pedestrian|track|residential|living_street|service|unclassified|tertiary|cycleway|steps|bridleway';
     return `[out:json][timeout:50];way["highway"~"^(${types})$"](${(lat-a).toFixed(6)},${(lon-b).toFixed(6)},${(lat+a).toFixed(6)},${(lon+b).toFixed(6)});(._;>;);out body qt;`;
   }
+  function directBox(lat,lon,miles){
+    const meters=Math.min(1300,Math.max(600,miles*MILE*.17));
+    const dy=meters/111195,dx=meters/(111195*Math.max(.15,Math.cos(rad(lat))));
+    return [lon-dx,lat-dy,lon+dx,lat+dy].map(n=>n.toFixed(6)).join(',');
+  }
+  function osmXml(xml){
+    const doc=new DOMParser().parseFromString(xml,'text/xml');
+    if(doc.getElementsByTagName('parsererror').length)throw Error('OSM XML could not be parsed.');
+    const elements=[];
+    for(const n of doc.getElementsByTagName('node'))elements.push({type:'node',id:Number(n.getAttribute('id')),lat:Number(n.getAttribute('lat')),lon:Number(n.getAttribute('lon'))});
+    for(const w of doc.getElementsByTagName('way')){
+      const tags={};
+      for(const t of w.getElementsByTagName('tag'))tags[t.getAttribute('k')]=t.getAttribute('v');
+      if(!VALID.has(tags.highway))continue;
+      elements.push({type:'way',id:Number(w.getAttribute('id')),nodes:Array.from(w.getElementsByTagName('nd'),n=>Number(n.getAttribute('ref'))),tags});
+    }
+    return {elements};
+  }
+  async function requestMap(source){
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),source.timeout);
+    try{
+      const response=await fetch(source.url,{...source.options,signal:ctrl.signal});
+      if(!response.ok)throw Error('HTTP '+response.status);
+      const body=await response.text(),trim=body.trimStart();
+      if(body.length>35000000)throw Error('Map result too large.');
+      const data=trim.startsWith('{')?JSON.parse(body):trim.startsWith('<')?osmXml(body):null;
+      if(!Array.isArray(data?.elements)||data.elements.length<20)throw Error('Not enough path data.');
+      const net=parse(data);
+      if(!net.adj.size)throw Error('No walkable paths.');
+      net.limited_coverage=!!source.limited;net.source_name=source.name;
+      return net;
+    }finally{clearTimeout(timer);}
+  }
   async function fetchNetwork(opts){
     const key=[opts.lat.toFixed(3),opts.lon.toFixed(3),Math.round(radius(opts.miles)/250)].join(':');
-    const c=cache.get(key);if(c&&Date.now()-c.time<20*60*1000)return c.net;
-    const body=new URLSearchParams({data:query(opts.lat,opts.lon,opts.miles)}),errors=[];
-    for(const url of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){
+    const hit=cache.get(key);if(hit&&Date.now()-hit.time<20*60*1000)return hit.net;
+    const body=new URLSearchParams({data:query(opts.lat,opts.lon,opts.miles)});
+    const sources=[
+      {name:'Direct OSM',limited:true,timeout:13000,url:'https://api.openstreetmap.org/api/0.6/map?bbox='+directBox(opts.lat,opts.lon,opts.miles),options:{headers:{Accept:'application/json'}}},
+      {name:'Overpass private.coffee',timeout:16000,url:'https://overpass.private.coffee/api/interpreter',options:{method:'POST',body}},
+      {name:'Overpass FOSSGIS',timeout:16000,url:'https://overpass-api.de/api/interpreter',options:{method:'POST',body}}
+    ];
+    if(opts.miles>9)sources.push(sources.shift());
+    const errors=[];
+    for(const source of sources){
       try{
-        const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),85000);
-        let response;
-        try{response=await fetch(url,{method:'POST',body,signal:ctrl.signal});}
-        finally{clearTimeout(timer);}
-        if(!response.ok)throw new Error(`HTTP ${response.status}`);
-        const data=await response.json();if((data.elements||[]).length<20)throw new Error('Not enough mapped paths returned');
-        const net=parse(data);if(!net.adj.size)throw new Error('No walkable paths mapped in the area');
-        cache.set(key,{time:Date.now(),net});if(cache.size>3)cache.delete(cache.keys().next().value);
+        const net=await requestMap(source);
+        cache.set(key,{time:Date.now(),net});if(cache.size>4)cache.delete(cache.keys().next().value);
         return net;
-      }catch(err){errors.push(err.message||String(err));}
+      }catch(err){errors.push(source.name+' '+(err.name==='AbortError'?'timed out':err.message));}
     }
-    throw new Error('Map path-data servers are unavailable or blocked. Check internet access, try again later, or use the Python version. '+errors.join('; '));
+    throw Error('No route data available. '+errors.join(' | '));
   }
   async function search(q){
     const match=q.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
@@ -693,7 +728,7 @@
       const base=await fetchNetwork(opts);
       return run(attachReviewedPaths(base,opts.extra_paths),opts);},
     // Offline test interface, not needed by the app itself.
-    _test:{parse,run,query,radius,attachReviewedPaths}
+    _test:{parse,run,query,radius,directBox,requestMap,attachReviewedPaths}
   };
 })();
 
@@ -820,6 +855,7 @@
         return;
       }
       renderRouteCards();selectRoute(0);
+      if(result.limited_coverage)$('routeCards').insertAdjacentHTML('afterbegin','<div class="route-error">Only a small map area was available. Long routes may be incomplete.</div>');
       const elevated=result.routes.some(r=>r.elevation_status==='available');
       if(options.extra_paths.length>0&&result.reviewed_connected===0){
         toast('No reviewed aerial path endpoints connect closely to the mapped network here. Move/trace endpoints nearer mapped paths.',8500);

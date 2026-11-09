@@ -43,6 +43,13 @@ const diagnostics=[
    catch(e){last=e;}
  }throw Error('Both route servers failed: '+(last?.message||last));
 }],
+['Direct OpenStreetMap API','Tests the fallback route source when Overpass is unresponsive.',async()=>{
+ const r=await fetch('https://api.openstreetmap.org/api/0.6/map?bbox=-97.736,30.283,-97.732,30.287',{headers:{Accept:'application/json'}});
+ if(!r.ok)throw Error('HTTP '+r.status);
+ const t=await r.text();
+ if(!t.includes('way')&&!t.includes('<osm'))throw Error('Unexpected OSM response');
+ return 'Native map data available ('+t.length+' characters)';
+}],
 ['Elevation','Checks the no-key elevation provider.',async()=>{
  const r=await fetch('https://api.open-meteo.com/v1/elevation?latitude=30.2849&longitude=-97.734');if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!j.elevation?.length)throw Error('No height data');return 'Elevation '+j.elevation[0]+' m received.';
 }],
