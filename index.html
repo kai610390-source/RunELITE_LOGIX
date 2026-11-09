@@ -1107,10 +1107,13 @@
     if(!window.SurfaceStrideShare){toast('Route sharing did not load. Try Download GPX.',5500);return;}
     try{
       const url=window.SurfaceStrideShare.link(r,window.location.href);
-      if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(url);
-      else window.prompt('Copy this route link:',url);
-      toast('Route link copied. Open it on your phone to send the GPX to COROS.',6000);
-    }catch(err){toast('Could not copy the route: '+(err?.message||err),6500);}
+      let copied=false;
+      if(navigator.clipboard?.writeText){
+        try{await navigator.clipboard.writeText(url);copied=true;}catch(_err){/* Prompt fallback. */}
+      }
+      if(copied)toast('Route link copied. Open it on your phone to send the GPX to COROS.',6000);
+      else {window.prompt('Copy this route link:',url);toast('Copy the link in the dialog and open it on your phone.',6000);}
+    }catch(err){toast('Could not prepare route link: '+(err?.message||err),6500);}
   }
   function wireControls(){
     function syncRouting(){
