@@ -36,6 +36,23 @@ const diagnostics=[
 ['Leaflet maps','Checks the map library used by the main app.',async()=>{
  const r=await fetch('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',{mode:'cors',cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return 'Map library accessible.';
 }],
+['Walking router (OSRM)','Checks the public walking-route service used by the fast routing mode.',async()=>{
+ const url='https://routing.openstreetmap.de/routed-foot/route/v1/driving/-97.734,30.2849;-97.730,30.287?overview=full&geometries=geojson&steps=false';
+ const r=await fetch(url);
+ if(!r.ok)throw Error('HTTP '+r.status);
+ const data=await r.json();
+ if(data.code!=='Ok'||!data.routes?.[0]?.geometry?.coordinates?.length)throw Error(data.code||'No pedestrian route');
+ return 'Pedestrian route returned ('+Math.round(data.routes[0].distance)+' meters).';
+}],
+['Walking backup (Valhalla)','Checks the independent pedestrian routing backup.',async()=>{
+ const request={locations:[{lat:30.2849,lon:-97.734},{lat:30.287,lon:-97.730}],costing:'pedestrian',units:'kilometers'};
+ const url='https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(request));
+ const r=await fetch(url);
+ if(!r.ok)throw Error('HTTP '+r.status);
+ const data=await r.json();
+ if(!data.trip?.legs?.length)throw Error(data.error||'No pedestrian route');
+ return 'Pedestrian backup returned a route.';
+}],
 ['OpenStreetMap route data','Checks Overpass, which supplies paths and surface tags.',async()=>{
  const params=new URLSearchParams({data:'[out:json][timeout:12];way["highway"="footway"](around:120,30.2849,-97.734);out body 1;'});
  let last=null;for(const host of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){
