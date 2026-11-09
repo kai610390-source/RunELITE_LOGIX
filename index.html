@@ -167,7 +167,7 @@
     </div>
   </div>
 
-  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p><strong>Experimental Satellite Scout</strong> inspects a small area of USGS/USDA NAIP public-domain aerial imagery to propose narrow, pale linear features. They could be paths, farm tracks, drainage, roofs, or other structures. Imagery cannot prove gravel surface, safe access, or an open path. Suggestions must be user-reviewed and can join mapped routes only when endpoints are within 15 meters of an existing walkable route node. Manual tracing is available when aerial scanning fails.</p><p><strong>Connect small gravel paths</strong> searches for short gravel-tagged ways, gravel-like tracktype=grade2 ways, and informal footpaths, then uses connected mapped roads and trails to link them. Tracktype inference isn't a visual surface confirmation. This does not detect paths missing entirely from OpenStreetMap, and it does not invent shortcuts across unverified land. Access-restricted paths are excluded unless pedestrian access is explicitly permitted.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
+  <dialog id="infoDialog" class="info-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button><span class="eyebrow">WHAT'S UNDER THE HOOD</span><h2>Not all miles feel the same.</h2><p>SurfaceStride builds running routes using walkable ways in <strong>OpenStreetMap</strong>. It reads tags such as <code>surface=grass</code>, <code>surface=gravel</code>, and <code>surface=asphalt</code>, then searches for connected routes close to your target distance.</p><p><strong>Surface confidence matters.</strong> Explicitly tagged surfaces are distinguished from inferred pavement and unknown paths. A green line is only as reliable as its map data.</p><p>Use the <strong>Google Earth</strong> link and downloadable KML to inspect routes in satellite imagery, or use <strong>Street View</strong> checkpoints to visually confirm segments where imagery exists. The app does <strong>not</strong> scrape Google images or automatically classify their pixels.</p><p><strong>Elevation estimates</strong> use Open-Meteo terrain height samples (Copernicus GLO-90 DEM). Flat, Rolling, and Hilly compare candidate routes by climbing; a flat preference cannot guarantee no hills. Elevation gain, grades, and exported altitudes are estimates, especially for short climbs, bridges, and tunnels. If the elevation provider is unavailable the surface route still works.</p><p>You do not need to provide your exact starting point. Pan to an area of interest and SurfaceStride automatically selects a nearby mapped walking path as the origin of each route.</p><p><strong>Experimental Satellite Scout</strong> inspects a small area of USGS/USDA NAIP public-domain aerial imagery to propose narrow, pale linear features. They could be paths, farm tracks, drainage, roofs, or other structures. Imagery cannot prove gravel surface, safe access, or an open path. Suggestions must be user-reviewed and can join mapped routes only when endpoints are within 10 meters of an existing walkable mapped segment. This proximity is not proof of a safe connection. Manual tracing is available when aerial scanning fails.</p><p><strong>Connect small gravel paths</strong> searches for short gravel-tagged ways, gravel-like tracktype=grade2 ways, and informal footpaths, then uses connected mapped roads and trails to link them. Tracktype inference isn't a visual surface confirmation. This does not detect paths missing entirely from OpenStreetMap, and it does not invent shortcuts across unverified land. Access-restricted paths are excluded unless pedestrian access is explicitly permitted.</p><p>Most trails, grassy fields, and private tracks don't have complete surface tags; routes can also contain intersections or roads that require safety judgment. Treat generated routes as suggestions, not turn-by-turn navigation.</p><button class="dialog-ok">Got it</button></form></dialog>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
 /* Terrain elevation from the Open-Meteo public 90 m Copernicus DEM.
@@ -345,7 +345,7 @@
   }
   function dest(a,bearing,m){return {lat:a.lat + m*Math.cos(rad(bearing))/111195,lon:a.lon + m*Math.sin(rad(bearing))/(111195*Math.max(.15,Math.cos(rad(a.lat))))};}
   function surface(tags){
-    if(tags.surface_stride_candidate==='yes')return {surface:'gravel',evidence:'inferred',raw_surface:'reviewed aerial candidate — surface unverified'};
+    if(tags.surface_stride_candidate==='yes')return {surface:'unknown',evidence:'unclassified',raw_surface:'aerial candidate; surface unverified'};
     const raw=(tags.surface||'').trim().toLowerCase();
     if(raw)return {surface:SURFACE[raw]||'unknown',evidence:SURFACE[raw]?'tagged':'unclassified',raw_surface:raw};
     // Track quality provides a useful but unverified clue about small unmapped-surface tracks.
@@ -449,7 +449,8 @@
       for(const {to:next,e,key} of net.adj.get(id)||[]){
         let factor=opts.preference==='mixed'?(e.surface==='unknown'?1.5:1):liked.has(e.surface)?.75:e.surface==='unknown'?1.65:opts.preference==='soft'&&e.surface==='gravel'?1.05:2.2;
         if(opts.link_gravel&&opts.preference==='gravel'){
-          if(e.surface==='gravel')factor*=e.highway==='path'||e.highway==='track'||e.informal?.7:.82;
+          if(e.aerial_candidate)factor*=.62;
+          else if(e.surface==='gravel')factor*=e.highway==='path'||e.highway==='track'||e.informal?.7:.82;
           else if(e.surface==='unknown'&&['track','path','footway'].includes(e.highway))factor*=.91;
         }
         if(opts.favor_tagged&&e.evidence!=='tagged')factor*=1.3;
@@ -464,13 +465,14 @@
   }
   function describe(net,route,offset){
     const lengths=Object.fromEntries(ALL.map(k=>[k,0])),ev={tagged:0,inferred:0,unclassified:0};
-    let sum=0,roads=0;const gravelWayLengths=new Map(),gravelEdgesSeen=new Set();
+    let sum=0,roads=0;const gravelWayLengths=new Map(),gravelEdgesSeen=new Set(),aerialWays=new Set();let aerialMeters=0;
     const coordinates=route.map(id=>{const p=net.nodes.get(id);return [Number(p.lat.toFixed(7)),Number(p.lon.toFixed(7))];});
     const spans=[];let span=null;const steps=[];
     for(let i=1;i<route.length;i++){
       const a=route[i-1],b=route[i],e=net.adj.get(a).find(x=>x.to===b).e;
       sum+=e.length;lengths[e.surface]+=e.length;ev[e.evidence]+=e.length;
       if(ROAD.has(e.highway))roads+=e.length;
+      if(e.aerial_candidate){aerialMeters+=e.length;aerialWays.add(e.way_id);}
       if(e.surface==='gravel'){
         const k=edgeKey(a,b);
         if(!gravelEdgesSeen.has(k)){
@@ -493,6 +495,7 @@
     return {distance_miles:Number((sum/MILE).toFixed(2)),distance_m:Math.round(sum),
       gravel_sections:Array.from(gravelWayLengths.values()).filter(m=>m>=25).length,
       gravel_miles:Number((uniqueGravelMeters/MILE).toFixed(2)),
+      reviewed_sections:aerialWays.size,reviewed_miles:Number((aerialMeters/MILE).toFixed(2)),
       surface_percent:Object.fromEntries(ALL.map(k=>[k,Number((100*lengths[k]/sum).toFixed(1))])),
       tagged_percent:Math.round(100*ev.tagged/sum),inferred_percent:Math.round(100*ev.inferred/sum),
       unknown_percent:Math.round(100*ev.unclassified/sum),road_percent:Math.round(100*roads/sum),
@@ -508,7 +511,8 @@
     const base=Math.abs(item.distance_miles-opts.miles)/opts.miles*3.5+gap*1.6+item.unknown_percent*.003+item.road_percent*.001;
     // Prefer several distinct gravel ways, not merely one major gravel road.
     const linking=opts.link_gravel&&opts.preference==='gravel'?Math.min(.48,item.gravel_sections*.065):0;
-    return base-linking;
+    const scoutBoost=opts.link_gravel&&opts.preference==='gravel'?Math.min(.25,(item.reviewed_sections||0)*.10):0;
+    return base-linking-scoutBoost;
   }
   function overlay(net,lat,lon){
     const items=[];
@@ -523,48 +527,61 @@
   // Overlay user-reviewed suggestions on a copy of the mapped network. Never infer
   // a road connection across large unmapped gaps: endpoint snaps are capped at 15 m.
   // Only possible paths explicitly reviewed by the user are eligible.
+  // Attach reviewed imagery paths to mapped walkable segments, including long edges
+  // with no intermediate OSM vertices. Proximity is not proof of safe access.
   function attachReviewedPaths(original,confirmed){
     if(!Array.isArray(confirmed)||!confirmed.length)return original;
     const net={nodes:new Map(original.nodes),adj:new Map(),ways:original.ways.slice(),reviewedCount:0};
-    for(const [id,edges] of original.adj)net.adj.set(id,edges.slice());
+    for(const [id,links] of original.adj)net.adj.set(id,links.slice());
+    const segments=[];
+    for(const [id,links] of original.adj)for(const link of links)if(id<link.to)
+      segments.push({a:id,b:link.to,e:link.e,p:original.nodes.get(id),q:original.nodes.get(link.to)});
     let next=-2000000000,wayid=-1000000000;
-    const eligible=Array.from(original.adj.keys());
-    const snap=(point)=>{
-      let best=null,meters=15.0;
-      // Search walkable graph nodes, not all original OSM points or off-limits ways.
-      for(const id of eligible){
-        const p=original.nodes.get(id),d=distance(p,point);
-        if(d<meters){best=id;meters=d;}
+    function connect(a,b,base){
+      if(a===b)return false;
+      const p=net.nodes.get(a),q=net.nodes.get(b);
+      if(!p||!q)return false;
+      const length=distance(p,q);
+      if(!Number.isFinite(length)||length<.01||length>900)return false;
+      const e={...base,length},key=edgeKey(a,b);
+      net.adj.get(a).push({to:b,e,key});net.adj.get(b).push({to:a,e,key});
+      return true;
+    }
+    function snap(point){
+      let best=null,limit=10;
+      for(const seg of segments){
+        const cos=Math.cos(rad(point.lat)),sx=(seg.p.lon-point.lon)*111195*cos,sy=(seg.p.lat-point.lat)*111195;
+        const vx=(seg.q.lon-seg.p.lon)*111195*cos,vy=(seg.q.lat-seg.p.lat)*111195;
+        const denom=vx*vx+vy*vy;if(denom<.001)continue;
+        const t=Math.max(0,Math.min(1,-(sx*vx+sy*vy)/denom));
+        const d=Math.hypot(sx+vx*t,sy+vy*t);
+        if(d<limit){limit=d;best={seg,t,lat:seg.p.lat+(seg.q.lat-seg.p.lat)*t,lon:seg.p.lon+(seg.q.lon-seg.p.lon)*t};}
       }
-      return best;
-    };
-    for(const candidate of confirmed.slice(0,80)){
-      const coords=candidate?.points;
-      if(!Array.isArray(coords)||coords.length<2||coords.length>150||
-         !coords.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Math.abs(p.lat)<=85&&Math.abs(p.lon)<=180))continue;
-      const first=snap(coords[0]),last=snap(coords[coords.length-1]);
+      if(!best)return null;
+      if(best.t<.001)return best.seg.a;
+      if(best.t>.999)return best.seg.b;
+      const id=next--;net.nodes.set(id,{lat:best.lat,lon:best.lon});net.adj.set(id,[]);
+      connect(best.seg.a,id,best.seg.e);connect(id,best.seg.b,best.seg.e);
+      return id;
+    }
+    for(const c of confirmed.slice(0,80)){
+      const pts=c?.points;
+      if(!Array.isArray(pts)||pts.length<2||pts.length>150||
+        !pts.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Math.abs(p.lat)<=85&&Math.abs(p.lon)<=180))continue;
+      let total=0;for(let i=1;i<pts.length;i++)total+=distance(pts[i-1],pts[i]);
+      if(total<10||total>2000)continue;
+      const first=snap(pts[0]),last=snap(pts[pts.length-1]);
       if(first===null&&last===null)continue;
-      let rawLength=0;
-      for(let i=1;i<coords.length;i++)rawLength+=distance(coords[i-1],coords[i]);
-      if(rawLength<10||rawLength>2000)continue;
-      if(first!==null&&last!==null&&first===last)continue;
-      const nodes=coords.map((c,i)=>{
-        if(i===0&&first!==null)return first;
-        if(i===coords.length-1&&last!==null)return last;
-        const id=next--;net.nodes.set(id,{lat:c.lat,lon:c.lon});net.adj.set(id,[]);return id;
-      });
-      const id=wayid--,tags={highway:'path',surface_stride_candidate:'yes',name:'User-reviewed possible path'};
-      let built=0;
-      for(let i=1;i<nodes.length;i++){
-        const a=nodes[i-1],b=nodes[i],p=net.nodes.get(a),q=net.nodes.get(b);
-        const length=distance(p,q);
-        if(!Number.isFinite(length)||length<.01||length>900)continue;
-        const e={surface:'gravel',evidence:'inferred',raw_surface:'aerial candidate; surface unverified',
-          length,highway:'path',name:'User-reviewed possible path',way_id:id,informal:true};
-        const key=edgeKey(a,b);
-        net.adj.get(a).push({to:b,e,key});net.adj.get(b).push({to:a,e,key});built++;
-      }
-      if(built){net.ways.push({type:'way',id,nodes,tags});net.reviewedCount++;}
+      if(first!==null&&first===last)continue;
+      const ids=pts.map(p=>{const id=next--;net.nodes.set(id,{lat:p.lat,lon:p.lon});net.adj.set(id,[]);return id;});
+      const meta={surface:'unknown',evidence:'unclassified',raw_surface:'unverified aerial candidate',
+        highway:'path',name:'User-reviewed possible path',way_id:wayid--,informal:true,aerial_candidate:true};
+      let count=0;for(let i=1;i<ids.length;i++)if(connect(ids[i-1],ids[i],meta))count++;
+      if(!count)continue;
+      if(first!==null)connect(first,ids[0],{...meta,aerial_candidate:false,name:'Unverified short connection'});
+      if(last!==null)connect(last,ids[ids.length-1],{...meta,aerial_candidate:false,name:'Unverified short connection'});
+      net.ways.push({type:'way',id:meta.way_id,nodes:ids,tags:{highway:'path',surface_stride_candidate:'yes',name:'User-reviewed possible path'}});
+      net.reviewedCount++;
     }
     return net;
   }
@@ -572,7 +589,7 @@
     const {start,offset,nodeIds}=choose(net,opts.lat,opts.lon),origin=net.nodes.get(start);
     const target=opts.miles*MILE,anchor=target/(2*Math.PI),candidates=[],fingerprints=new Set();
     const gravelNodes=opts.link_gravel&&opts.preference==='gravel'?
-      nodeIds.filter(id=>(net.adj.get(id)||[]).some(x=>x.e.surface==='gravel')):[];
+      nodeIds.filter(id=>(net.adj.get(id)||[]).some(x=>x.e.surface==='gravel'||x.e.aerial_candidate)):[];
     function anchorNode(p){
       const fallback=closest(net,nodeIds,p.lat,p.lon);
       return gravelNodes.length?findSmallGravelAnchor(net,gravelNodes,p,fallback,Math.min(1100,Math.max(300,anchor*.55))):fallback;
@@ -828,6 +845,7 @@
         <span class="card-upper"><span><span class="route-kicker">OPTION ${String(i+1).padStart(2,'0')}</span><h3>${escapeHtml(r.title)}</h3></span><span class="card-mile">${r.distance_miles.toFixed(2)} <span>mi</span></span></span>
         <span class="card-elevation">${r.elevation_status==='available'?`↗ ${r.elevation_gain_ft.toLocaleString()} ft gain · ${r.climb_ft_per_mile} ft/mi`:'Elevation unavailable'}</span>
         ${state.preference==='gravel'?`<span class="card-elevation">${r.gravel_sections||0} mapped gravel sections · ${(r.gravel_miles||0).toFixed(2)} unique gravel mi</span>`:''}
+        ${(r.reviewed_sections||0)>0?`<span class="card-elevation">◇ ${r.reviewed_sections} reviewed image path(s) · ${(r.reviewed_miles||0).toFixed(2)} unverified mi</span>`:''}
         <span class="mini-bar">${surfaceBarHtml(r.surface_percent)}</span>
         <span class="card-meta"><span><b>${r.match_percent}%</b> ${escapeHtml(phrase)}</span><span>${r.tagged_percent}% explicitly tagged</span></span>
       </button>`;
