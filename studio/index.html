@@ -64,6 +64,7 @@
             <button id="autoMode" class="build-choice active" aria-pressed="true"><span>✦</span><b>Auto generate</b><small>Create a suggested route near the map center</small></button>
             <button id="drawMode" class="build-choice" aria-pressed="false"><span>⌖</span><b>Draw waypoints</b><small>Click and drag points to shape your route</small></button>
           </div>
+          <label class="toggle-row"><span><b>Manual off-road lines</b><small>Straight connections without path snapping; verify access</small></span><input id="straightToggle" type="checkbox"><span class="switch"></span></label>
           <button id="generateBtn" class="primary-cta"><span>Generate route</span><span class="cta-circle">↗</span></button>
           <div class="inline-actions">
             <button id="rerollBtn" title="Generate another variation">↻ Reroll</button>
@@ -77,6 +78,8 @@
           <div class="section-label"><span>★</span> Your saved routes</div>
           <p class="hint">Routes are saved locally in this browser—no sign-in or subscription.</p>
           <div id="savedList" class="saved-list"></div>
+          <button id="importGpxBtn" class="secondary-wide">↓ Import GPX track</button>
+          <input id="importGpxFile" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
         </section>
         <section class="tab-panel" id="tab-discover" hidden>
           <div class="section-label"><span>◆</span> Surface discovery</div>
@@ -95,7 +98,7 @@
       <div class="map-controls">
         <button class="map-tool active" id="labelsBtn" title="Show/hide street and place names">⌖ <span>Labels</span></button>
         <button class="map-tool" id="gravelBtn" title="Show gravel and dirt paths">▤ <span>Show gravel</span></button>
-        <button class="map-tool" id="zoneBtn" title="Click two opposite corners to define a route generation area">⬡ <span>Route zone</span></button>
+        <button class="map-tool" id="zoneBtn" title="Use map center as one corner, then click opposite corner to define an area">⬡ <span>Route zone</span></button>
         <button class="map-tool" id="weatherBtn" title="Show current weather conditions">☁ <span>Weather</span></button>
         <button class="map-tool" id="streetBtn" title="Inspect at Instant Street View">↗ <span>Street View</span></button>
       </div>
@@ -146,7 +149,9 @@
 </dialog>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="../surface-tags.js?build=studio1"></script>
+<script src="../foot-router.js?build=studio1"></script>
 <script src="../share-route.js?build=studio1"></script>
+<script src="./engine.js?build=studio1"></script>
 <script src="./app.js?build=studio1"></script>
 </body>
 </html>
