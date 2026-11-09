@@ -675,7 +675,7 @@
       const base=await fetchNetwork(opts);
       return run(attachReviewedPaths(base,opts.extra_paths),opts);},
     // Offline test interface, not needed by the app itself.
-    _test:{parse,run,query,radius}
+    _test:{parse,run,query,radius,attachReviewedPaths}
   };
 })();
 
@@ -821,7 +821,7 @@
   }
   function renderRouteCards(){
     const routes=state.data?.routes||[];
-    $('resultCount').textContent=`${routes.length} FOUND`;
+    $('resultCount').textContent=routes.length+' FOUND'+(state.data.reviewed_connected?' · '+state.data.reviewed_connected+' aerial links':'');
     $('routeCards').innerHTML=routes.map((r,i)=>{
       const phrase=state.preference==='mixed'?'surface mix':state.preference==='soft'?'soft surface':state.preference==='paved'?'paved surface':'gravel';
       return `<button class="route-card ${state.selected===i?'is-selected':''}" type="button" data-route-index="${i}">

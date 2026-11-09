@@ -42,7 +42,7 @@
       return score>19?{score:score,coverage:hits/n,green:green/(2*n)}:null;
     }
     var raw=[],edge=45;
-    for(var y=edge;y<h-edge;y+=14)for(var x=edge;x<w-edge;x+=14)
+    for(var y=edge;y<h-edge;y+=8)for(var x=edge;x<w-edge;x+=8)
       for(var a=0;a<12;a++){
         var theta=a*Math.PI/12,dx=Math.cos(theta),dy=Math.sin(theta),s=lineScore(x,y,dx,dy);
         if(s)raw.push({x:x,y:y,dx:dx,dy:dy,score:s.score,coverage:s.coverage,angle:theta});
@@ -142,7 +142,9 @@
     var length=0;for(var i=1;i<draft.length;i++)length+=feet(draft[i-1],draft[i]);
     if(length<35||length>6500){message('Trace must be between 35 and 6,500 feet.');return;}
     var p={id:'trace'+Date.now(),points:draft.slice(),source:'manual imagery review'};
-    tracing=false;draft=[];$('scoutTrace').textContent='Trace a missing path';approve(p);draw();
+    var before=paths.length;approve(p);
+    if(paths.length===before){message('Trace kept until reviewed. Finish when ready.');return;}
+    tracing=false;draft=[];$('scoutTrace').textContent='Trace a missing path';draw();
   }
   function imgRequest(url){
     return new Promise(function(resolve,reject){
@@ -181,7 +183,7 @@
       });
       draw();
       message(candidates.length?
-        'Found '+candidates.length+' possible short trail-like segments in about 0.5 km². Orange = unverified. Inspect and review before use.':
+        'Found '+candidates.length+' possible short trail-like segments in a 510 m-wide square. Orange = unverified. Inspect and review before use.':
         'No convincing narrow pale lines detected here. Try another map area or trace manually.');
     }catch(err){message('Scan unavailable: '+(err.message||err)+'. Try Trace a missing path.');}
     finally{busy=false;$('scoutScan').disabled=false;}
@@ -201,7 +203,12 @@
     var scanButton=button('scan','Scan aerial image');scanButton.id='scoutScan';scanButton.addEventListener('click',scan);
     var traceButton=button('trace','Trace a missing path');traceButton.id='scoutTrace';traceButton.addEventListener('click',trace);
     var finishButton=button('finish','Finish trace');finishButton.id='scoutFinish';finishButton.disabled=true;finishButton.addEventListener('click',finish);
-    buttons.append(scanButton,traceButton,finishButton);
+    var street=button('streetview','Inspect in Instant Street View');
+    street.addEventListener('click',function(){
+      var c=map.getCenter();
+      window.open('https://www.instantstreetview.com/@'+c.lat.toFixed(6)+','+c.lng.toFixed(6)+',0h,0p,1z','_blank','noopener,noreferrer');
+    });
+    buttons.append(scanButton,traceButton,finishButton,street);
     launcher.addEventListener('click',function(){panel.hidden=!panel.hidden;launcher.textContent=panel.hidden?'Satellite Scout ◇':'Close Satellite Scout ×';});
     map.on('click',function(e){
       if(!tracing)return;
