@@ -436,7 +436,7 @@ function chooseNetworkWalk(graph,networks,center,target,shape,variant=0){
   return (kb-b.distance*.13)-(ka-a.distance*.13);
  });
  const shortlist=candidates.slice(0,12);
- let best=null;
+ const alternatives=[];
  for(let i=0;i<shortlist.length;i++){
   const entry=shortlist[(i+(variant%shortlist.length))%shortlist.length];
   const possible=[];
@@ -455,13 +455,15 @@ function chooseNetworkWalk(graph,networks,center,target,shape,variant=0){
    const mismatch=shape==='loop'&&!choice.hasCycle?.20:0;
    const offsetPenalty=entry.distance/30000;
    const score=error+mismatch+offsetPenalty;
-   if(!best||score<best.score){
-    best={...choice,score,start:entry.start,component:entry.component,
-     offset:entry.distance,actual};
-   }
+   alternatives.push({...choice,score,start:entry.start,
+    component:entry.component,offset:entry.distance,actual});
   }
  }
- return best;
+ if(!alternatives.length)return null;
+ alternatives.sort((a,b)=>a.score-b.score);
+ const best=alternatives[0];
+ const nearBest=alternatives.filter(c=>c.score<=best.score+.32);
+ return nearBest[(Math.max(0,Math.floor(variant))%Math.min(4,nearBest.length))]||best;
 }
 function buildFromData(elements,options,reviews={},connectors=[]){
  const {center,material:preferred='both',miles=5,shape='loop',
