@@ -58,7 +58,7 @@ function anchored(data,dir){
  return best&&best.score>.14?best:null;
 }
 function imageLine(data){
- const w=data.width,h=data.height,step=Math.max(10,Math.round(Math.min(w,h)/50));
+ const w=data.width,h=data.height,step=Math.max(4,Math.round(Math.min(w,h)/105));
  const margin=Math.round(Math.min(w,h)*.16),best=[];
  for(let y=margin;y<h-margin;y+=step)for(let x=margin;x<w-margin;x+=step){
   for(let i=0;i<8;i++){
