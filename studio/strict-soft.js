@@ -118,6 +118,96 @@ function components(graph){
  }
  return result.sort((a,b)=>b.totalLength-a.totalLength);
 }
+// Only mapped walkable road/footway links can connect distinct soft networks.
+// Road connectors are compressed into bounded edges: no paved routing detours.
+function bridgeNetworks(graph,elements,{maxRoadMeters=240,maxConnections=110}={}){
+ const base=components(graph),membership=new Map(),nodes=graph.nodes;
+ for(let c=0;c<base.length;c++)for(const id of base[c].nodes)membership.set(id,c);
+ const roadAdj=new Map();
+ const pavedTypes=new Set(['asphalt','concrete','concrete:plates','paving_stones','sett','cobblestone']);
+ const roads=new Set(['residential','living_street','service','pedestrian','footway','cycleway']);
+ let roadEdges=0;
+ for(const way of elements)if(way.type==='way'&&Array.isArray(way.nodes)){
+  const t=way.tags||{};
+  if(!roads.has(t.highway)||HARD_NO.has(t.foot)||t.foot==='use_sidepath'||
+   (HARD_NO.has(t.access)&&!['yes','designated','permissive','official'].includes(t.foot))||
+   ['driveway','parking_aisle','alley'].includes(t.service)||
+   t.highway==='cycleway'&&t.foot==='no')continue;
+  if(MATERIAL[(t.surface||'').toLowerCase()])continue;
+  for(let i=1;i<way.nodes.length;i++){
+   const a=Number(way.nodes[i-1]),b=Number(way.nodes[i]);
+   const pa=nodes.get(a),pb=nodes.get(b);if(!pa||!pb||a===b)continue;
+   const length=meters(pa,pb);
+   if(length<.3||length>maxRoadMeters)continue;
+   const surface=pavedTypes.has((t.surface||'').toLowerCase())?'paved':'unknown';
+   const e={a,b,length,surface,name:t.name||'Mapped pedestrian road link'};
+   if(!roadAdj.has(a))roadAdj.set(a,[]);
+   if(!roadAdj.has(b))roadAdj.set(b,[]);
+   roadAdj.get(a).push({to:b,edge:e});
+   roadAdj.get(b).push({to:a,edge:e});
+   roadEdges++;
+  }
+ }
+ const seeds=[...roadAdj.keys()].filter(id=>membership.has(id));
+ const potentials=[];
+ const lengthLimit=Math.max(20,Math.min(300,Number(maxRoadMeters)||240));
+ // Each road search is bounded, and matches ONLY another soft component.
+ // Geometric proximity alone never creates a connector.
+ for(const origin of seeds.slice(0,140)){
+  const startGroup=membership.get(origin);
+  const dist=new Map([[origin,0]]),parent=new Map(),queue=[[0,origin]];
+  while(queue.length){
+   queue.sort((a,b)=>a[0]-b[0]);
+   const [d,u]=queue.shift();
+   if(d>lengthLimit||d!==dist.get(u))continue;
+   const otherGroup=membership.get(u);
+   if(u!==origin&&otherGroup!==undefined&&otherGroup!==startGroup){
+    const path=[u],road=[];let cursor=u,safety=0;
+    while(cursor!==origin&&safety++<200){
+     const step=parent.get(cursor);if(!step)break;
+     road.push(step.edge);cursor=step.from;path.push(cursor);
+    }
+    if(cursor!==origin)continue;
+    path.reverse();road.reverse();
+    const material=road.every(x=>x.surface==='paved')?'paved':'unknown';
+    potentials.push({a:origin,b:u,length:d,coords:path.map(id=>{
+     const n=nodes.get(id);return [n.lat,n.lon];
+    }),material,roadNames:road.map(x=>x.name),
+     groups:[Math.min(startGroup,otherGroup),Math.max(startGroup,otherGroup)]});
+    // Stop at the first connected trail to avoid extending through it.
+    continue;
+   }
+   for(const leg of roadAdj.get(u)||[]){
+    const next=d+leg.edge.length;
+    if(next>lengthLimit||next>=(dist.get(leg.to)??Infinity)-1e-8)continue;
+    dist.set(leg.to,next);parent.set(leg.to,{from:u,edge:leg.edge});
+    queue.push([next,leg.to]);
+   }
+  }
+ }
+ potentials.sort((a,b)=>a.length-b.length);
+ const added=[],used=new Set();
+ for(const p of potentials){
+  if(added.length>=maxConnections)break;
+  const signature=p.groups.join(':');
+  const near=added.filter(x=>x.groupKey===signature);
+  if(near.length>=3||near.some(x=>
+   meters(nodes.get(x.a),nodes.get(p.a))<40&&meters(nodes.get(x.b),nodes.get(p.b))<40))continue;
+  const id='road-bridge:'+added.length+':'+p.a+':'+p.b;
+  if(used.has(id))continue;
+  used.add(id);
+  const e={a:p.a,b:p.b,id,wayId:id,material:p.material,evidence:'road',
+   length:p.length,coords:p.coords,name:'Short mapped road connection',
+   roadNames:[...new Set(p.roadNames)],groupKey:signature};
+  graph.edges.push(e);graph.byId.set(id,e);
+  graph.adj.get(p.a).push({to:p.b,edge:e});
+  graph.adj.get(p.b).push({to:p.a,edge:e});
+  added.push(e);
+ }
+ graph.roadConnectors=added.length;graph.softNetworks=base.length;
+ graph.roadNetworkEdges=roadEdges;
+ return graph;
+}
 function pickStart(graph,center,componentsList){
  let best=null,score=Infinity;
  for(const component of componentsList){
