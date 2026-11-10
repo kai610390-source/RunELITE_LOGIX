@@ -168,7 +168,10 @@ async function nearbyGravel(c){
   if(text.length>25000000)throw Error('Map extract is too large');
   const all=parseNative(text);
   // Include short untagged paths: surface unknown, but possibly dirt or trail.
-  const out=all.filter(s=>['gravel','grass','dirt','track'].includes(s.surface)||s.likelyTrail);
+  // Include paved and untagged pedestrian paths for training too.
+  // This makes it possible to teach the classifier road vs grass/dirt/gravel.
+  const out=all.filter(s=>['path','footway','track','bridleway','pedestrian'].includes(s.highway)||
+    ['gravel','grass','dirt','track'].includes(s.surface));
   overlayCache.set(box,out);if(overlayCache.size>12)overlayCache.delete(overlayCache.keys().next().value);
   return out;
  }finally{clearTimeout(timer);}
