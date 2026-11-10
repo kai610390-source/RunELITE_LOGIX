@@ -21,7 +21,7 @@
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
       <span class="status-indicator" title="Your routes stay in this browser"><i></i> No paywall · No account</span>
-      <a class="head-btn" href="./train.html?v=trail-first-v11b" style="color:#1d7345;font-weight:900">Train surfaces ↗</a>
+      <a class="head-btn" href="./train.html?v=better-prediction-v14b" style="color:#1d7345;font-weight:900">Train surfaces ↗</a>
       <button class="head-btn" id="helpBtn">How to use</button>
       <a class="head-btn" href="../" title="Open the original SurfaceStride route generator">Original planner ↗</a>
     </div>
@@ -121,7 +121,7 @@
           <button class="secondary-wide" id="clearAerialBtn">Hide aerial suggestions</button>
           <p class="hint">Inspect imagery, fences, access, and route continuity before adding a segment. Satellite imagery cannot establish whether land is public or a path is passable.</p>
           <div class="section-label"><span>◎</span> Train surface recognition</div>
-          <a class="secondary-wide" style="display:block;text-decoration:none;text-align:center;background:#216f47;color:white;border-color:#216f47" href="./train.html?v=trail-first-v11b">Open full-page surface trainer ↗</a>
+          <a class="secondary-wide" style="display:block;text-decoration:none;text-align:center;background:#216f47;color:white;border-color:#216f47" href="./train.html?v=better-prediction-v14b">Open full-page surface trainer ↗</a>
           <p class="hint">The trainer first looks for mapped footpaths and visible thin trails, instead of placing random targets on treetops or roofs; then you confirm or correct the surface guess.</p>
           <p class="hint">Zoom into a trail with public NAIP imagery, then label gravel, dirt, grass, paved road, tree canopy, building roof or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing. Aim for dozens of correctly labeled Austin-area examples per class before relying on predictions.</p>
           <button class="secondary-wide" id="trainMapCenterBtn">Inspect surface at map center ↗</button>
@@ -228,7 +228,7 @@
 <script src="./engine.js?build=surface-lab-v4b-20261109"></script>
 <script src="./strict-soft.js?build=trail-discovery-v14-20261110"></script>
 <script src="./imagery-providers.js?build=imagery-fallback-v9"></script>
-<script src="./surface-vision.js?build=trail-first-v11b"></script>
+<script src="./surface-vision.js?build=better-prediction-v14b"></script>
 <script src="./app.js?build=trail-discovery-v14b-20261110"></script>
 </body>
 </html>
