@@ -296,6 +296,42 @@ function buildFromData(elements,options,reviews={}){
   tagged:graph.edges.filter(e=>e.evidence==='osm').length,
   reviewed:graph.edges.filter(e=>e.evidence==='reviewed').length};
 }
+function routeBetweenData(elements,waypoints,{material:preferred='both',reviews={}}={}){
+ if(!Array.isArray(waypoints)||waypoints.length<2||waypoints.length>16)throw Error('Use 2–16 map points.');
+ const graph=graphFromElements(elements,reviews,preferred);
+ if(!graph.edges.length)throw Error('No qualified gravel/dirt paths in this map area.');
+ const snapped=[];
+ for(const point of waypoints){
+  let best=null,closest=Infinity;
+  for(const id of graph.adj.keys()){
+   const p=graph.nodes.get(id),delta=meters(p,point);
+   if(delta<closest){closest=delta;best=id;}
+  }
+  if(best===null||closest>40)throw Error('A waypoint is more than 40 m from a qualifying gravel/dirt trail. Move it onto the colored soft-surface overlay.');
+  snapped.push(best);
+ }
+ let walk=null;
+ for(let i=1;i<snapped.length;i++){
+  const a=snapped[i-1],b=snapped[i];
+  if(a===b)continue;
+  const search=shortest(graph,a);
+  const path=pathTo(search.parent,a,b);
+  if(!path)throw Error('These trail waypoints are not connected by qualifying gravel/dirt paths. No paved connector was inserted.');
+  walk=joinWalk(walk,path);
+ }
+ if(!walk)throw Error('Waypoints overlap; move them farther apart.');
+ const total=walk.edges.reduce((sum,e)=>sum+e.length,0);
+ const route=routeFromWalk(graph,walk,'Gravel/dirt waypoint route','point-to-point',total);
+ return {route,graph,note:'Waypoints were snapped only to connected, mapped gravel/dirt or user-confirmed trail sections. No paved connector was inserted.'};
+}
+async function planBetween(points,{material='both',reviews={},fetcher=fetch}={}){
+ const lat=points.reduce((sum,p)=>sum+p.lat,0)/points.length;
+ const lon=points.reduce((sum,p)=>sum+p.lon,0)/points.length;
+ let length=0;
+ for(let i=1;i<points.length;i++)length+=meters(points[i-1],points[i]);
+ const elements=await load({lat,lon},Math.min(25,Math.max(1,length/MI)),{fetcher});
+ return routeBetweenData(elements,points,{material,reviews});
+}
 async function plan(options,{fetcher=fetch,reviews={}}={}){
  const {lat,lon,miles,material:preferred='both'}=options;
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(miles)||
@@ -303,7 +339,7 @@ async function plan(options,{fetcher=fetch,reviews={}}={}){
  const elements=await load({lat,lon},miles,{fetcher});
  return buildFromData(elements,{center:{lat,lon},material:preferred,miles,shape:options.shape},reviews);
 }
-window.SurfaceStrideStrictSoft={plan,buildFromData,_test:{
+window.SurfaceStrideStrictSoft={plan,planBetween,buildFromData,_test:{routeBetweenData,
   graphFromElements,components,shortest,pathTo,findLoop,outBack,material,keyFor,routeFromWalk,load,access
 }};
 })();
