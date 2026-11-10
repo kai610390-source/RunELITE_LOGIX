@@ -13,7 +13,7 @@ const KM=1.609344,MI=1609.344;
 const OPTION_COLORS=['#1b9a75','#9264ce','#ed9a42','#358bc3','#ce698a'];
 const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,preference:'soft',
  terrain:'any',quiet:true,waypoints:[],straight:false,reroll:0,working:false,
- strictSoft:true,allowRoadLinks:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
+ strictSoft:true,allowRoadLinks:true,includeLikely:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
  routeOptions:[],optionIndex:0,optionLayer:null,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
  aerialOn:false,aerialCandidates:[],aerialBusy:false,
@@ -188,6 +188,11 @@ function drawRoute(preserveView=false){
     dashArray:'5 6',lineJoin:'round',interactive:false}).addTo(all);
    continue;
   }
+  if(span.evidence==='inferred'){
+   L.polyline(span.points,{color:'#7ed7de',weight:5.2,opacity:.95,
+    dashArray:'2 7',lineJoin:'round',interactive:false}).addTo(all);
+   continue;
+  }
   const color=COLORS[span.surface];if(!color||span.surface==='unknown')continue;
   L.polyline(span.points,{color,weight:span.evidence==='tagged'?4.7:3.4,
    opacity:span.evidence==='tagged'?1:.83,lineJoin:'round',interactive:false}).addTo(all);
@@ -218,12 +223,10 @@ function surfaceSummary(){
   item.append(strong,span);breakdown.append(item);
  }
  $('surfaceConfidence').textContent=r.strictSoft?
-   (r.road_meters?
-     (r.soft_percent||0)+'% soft surface · '+r.road_miles.toFixed(2)+
-      ' mi mapped road links ('+(r.road_percent||0)+'% of route) · '+
-      (r.surface_percent?.unknown||0)+'% road surface untagged · ':
-     'GRAVEL / DIRT ONLY · ')+
-   r.tagged_percent+'% OSM-tagged · '+r.reviewed_percent+'% human-reviewed':
+   (r.soft_percent||0)+'% likely soft · '+
+   (r.confirmed_soft_percent??(r.tagged_percent+r.reviewed_percent))+'% tagged/reviewed · '+
+   (r.probable_soft_percent||0)+'% unverified trail estimates · '+
+   (r.road_miles||0).toFixed(2)+' mi road/footway links':
    ((r.surface_data_status==='scanned'?
     (r.tagged_percent||0)+'% OSM-tagged · '+(r.inferred_percent||0)+'% inferred · '+(r.unknown_percent||0)+'% unknown':
     'Surface lookup pending or unavailable. Unknown does not mean paved.')+
@@ -346,12 +349,14 @@ function renderRouteOptions(){
   const label=document.createElement('strong');
   label.textContent='Route '+(index+1)+' · '+route.distance_miles.toFixed(2)+' mi';
   const figures=document.createElement('span');
-  figures.textContent=route.soft_percent.toFixed(0)+'% gravel/dirt · '+
+  figures.textContent=route.soft_percent.toFixed(0)+'% likely soft · '+
    route.road_miles.toFixed(2)+' mi road';
   const detail=document.createElement('small');
   detail.textContent=route.mode==='loop'?'Loop':route.mode==='out-and-back'?
    'Out & back':'Point to point';
-  if(route.surface_percent.unknown>0)detail.textContent+=' · some road surface untagged';
+  if(route.probable_soft_percent>0)
+   detail.textContent+=' · '+route.probable_soft_percent.toFixed(0)+'% probable trails';
+  if(route.surface_percent.unknown>0)detail.textContent+=' · road surface untagged';
   button.append(label,figures,detail);
   button.addEventListener('click',()=>selectRouteOption(index));
   list.append(button);
@@ -401,7 +406,8 @@ async function autoGenerate(){
    const data=await STRICT.planOptions({
     lat:base.lat,lon:Number.isFinite(base.lon)?base.lon:base.lng,
     miles:st.miles,shape:st.shape,material:st.softMaterial,
-    bounds,allowRoadLinks:st.allowRoadLinks,maxRoadMeters:240,maxOptions:4
+    bounds,allowRoadLinks:st.allowRoadLinks,includeLikely:st.includeLikely,
+    maxRoadMeters:240,maxOptions:4
    },{
     reviews:VISION?.getReviews?.()||{},
     connectors:VISION?.getConnectors?.()||[],
@@ -1044,6 +1050,10 @@ function wires(){
  $('shortRoadToggle').addEventListener('change',e=>{
   st.allowRoadLinks=e.target.checked;
   if(st.route)status('Short road-link preference changed. Generate routes again to apply it.');
+ });
+ $('likelyTrailToggle').addEventListener('change',e=>{
+  st.includeLikely=e.target.checked;
+  if(st.route)status('Probable trail setting changed. Generate again to apply it.');
  });
  $('strictSoftToggle').addEventListener('change',e=>{
   st.strictSoft=e.target.checked;

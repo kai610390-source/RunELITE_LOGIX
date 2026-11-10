@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Multi-Route Soft-First V13</title>
-<!-- SURFACESTRIDE_STUDIO_MULTI_ROUTE_V13 -->
+<title>SurfaceStride Studio | Improved Trail Discovery V14</title>
+<!-- SURFACESTRIDE_STUDIO_TRAIL_DISCOVERY_V14 -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -16,7 +16,7 @@
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>MULTI-ROUTE V13</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>TRAIL FINDER V14</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
@@ -61,13 +61,14 @@
           <p class="hint">See multiple gravel/dirt route options at once. Allow short paved links between longer trail sections, or disable them for gravel/dirt-only routes.</p>
           <div class="strict-surface-panel">
             <label class="toggle-row strict-toggle"><span><b>Soft-first route options</b><small>Compare multiple paths, prioritizing gravel and dirt</small></span><input id="strictSoftToggle" type="checkbox" checked><span class="switch"></span></label>
-            <label class="toggle-row"><span><b>Allow short road connections</b><small>Mapped walkable links up to 240 m each; aim for at least 78% gravel/dirt</small></span><input id="shortRoadToggle" type="checkbox" checked><span class="switch"></span></label>
+            <label class="toggle-row"><span><b>Include likely untagged trails</b><small>Discover more mapped narrow paths without surface labels; shown as probable, not verified</small></span><input id="likelyTrailToggle" type="checkbox" checked><span class="switch"></span></label>
+            <label class="toggle-row"><span><b>Allow short road connections</b><small>Mapped walkable links up to 240 m each; prefer mostly soft terrain</small></span><input id="shortRoadToggle" type="checkbox" checked><span class="switch"></span></label>
             <div class="strict-type-row" aria-label="Allowed surface for strict routing">
               <button type="button" data-soft-material="both" class="active">Gravel + Dirt</button>
               <button type="button" data-soft-material="gravel">Gravel only</button>
               <button type="button" data-soft-material="dirt">Dirt only</button>
             </div>
-            <p class="hint" id="strictSoftNote">Generate up to 4 different soft-first routes from all visible trails. A little road is allowed only on mapped pedestrian-accessible connectors, capped per link and by total road share. Toggle off for gravel/dirt-only choices.</p>
+            <p class="hint" id="strictSoftNote">Find more small trails, including probable untagged paths. Verified surfaces are distinguished from inferred ones. Generate up to four route options; short road links remain optional.</p>
           </div>
           <div class="section-label"><span>04</span> Elevation & terrain</div>
           <div class="pills"><button class="pill" data-terrain="flat">Flat</button><button class="pill active" data-terrain="any">Any hills</button><button class="pill" data-terrain="hilly">Hilly</button></div>
@@ -90,7 +91,7 @@
           <div class="route-choices-panel" id="routeChoices" hidden>
             <div class="route-choices-heading"><b>Compare route options</b><span id="routeChoiceCount">0 routes</span></div>
             <div class="route-choices-list" id="routeChoicesList"></div>
-            <p>Colored lines are route alternatives. Dashed amber sections are short road connections, not gravel or dirt.</p>
+            <p>Colored lines are route alternatives. Dashed cyan indicates unverified probable soft paths; dashed amber indicates short mapped road connections. Verify both before running.</p>
           </div>
         </section>
         <section class="tab-panel" id="tab-saved" hidden>
@@ -224,9 +225,9 @@
 <script src="./aerial.js?build=studio3"></script>
 <script src="../share-route.js?build=studio1"></script>
 <script src="./engine.js?build=surface-lab-v4b-20261109"></script>
-<script src="./strict-soft.js?build=multi-route-v13-20261110"></script>
+<script src="./strict-soft.js?build=trail-discovery-v14-20261110"></script>
 <script src="./imagery-providers.js?build=imagery-fallback-v9"></script>
 <script src="./surface-vision.js?build=trail-first-v11b"></script>
-<script src="./app.js?build=multi-route-v13-20261110"></script>
+<script src="./app.js?build=trail-discovery-v14-20261110"></script>
 </body>
 </html>
