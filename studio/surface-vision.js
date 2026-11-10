@@ -157,7 +157,7 @@ function removeReview(segment){
 function merc(lon,lat){
  return {x:R*lon*Math.PI/180,y:R*Math.log(Math.tan(Math.PI/4+Math.max(-85,Math.min(85,lat))*Math.PI/360))};
 }
-async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGround=false,onProgress=null}={}){
+async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGround=false,onProgress=null,trailHint=null,trailFirst=false}={}){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>85||Math.abs(lon)>180)
   throw Error('Invalid patch center');
  if(lat<24||lat>50||lon< -125||lon> -66)throw Error('NAIP is currently supported in the contiguous US only.');
@@ -172,19 +172,33 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGro
  const imagerySource=result.source;
  const picker=window.SurfaceStrideGroundPicker;
  if(preferOpenGround&&!picker?.choose)throw Error('Open-ground scanner did not load. Refresh the trainer.');
- const spot=preferOpenGround?picker.choose(data):null;
- if(preferOpenGround&&!spot){
+ const trail=window.SurfaceStrideTrailFocus;
+ let spot=null;
+ if(trailFirst&&trail){
+  if(trailHint?.trailAnchor)spot=trail.anchored(data,trailHint.direction);
+  if(!spot)spot=trail.imageLine(data);
+ }
+ if(!spot&&preferOpenGround&&!trailFirst)spot=picker.choose(data);
+ if(preferOpenGround&&!spot&&!trailFirst){
   const err=new Error('This area is too tree-covered or ambiguous for a reliable clear-ground target.');
   err.code='NO_OPEN_GROUND';throw err;
  }
- const sample={vector:spot?picker.focus(data,spot.x,spot.y):features(data),
+ // For the trail-first trainer, ambiguous imagery remains viewable but has
+ // NO automatically selected marker or training vector. The user must
+ // click the real trail or skip rather than label a tree or roof by accident.
+ const needsClick=trailFirst&&!spot;
+ const sample={vector:spot?picker.focus(data,spot.x,spot.y):needsClick?null:features(data),
   preview:canvas.toDataURL('image/jpeg',.91),lat,lon,source:'NAIP',
   patchMeters:half*2,imagerySource,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.',
-  targetX:spot?spot.x/px:.5,targetY:spot?spot.y/px:.5,
-  selection:spot?'candidate-open-ground':'original-center',
+  targetX:spot?spot.x/px:needsClick?null:.5,targetY:spot?spot.y/px:needsClick?null:.5,
+  selection:spot?spot.source:needsClick?'manual-needed':'original-center',
+  mappedTrailName:trailHint?.trailAnchor?trailHint.trailName:null,
   _raster:preferOpenGround?data:null,
   _mercatorBounds:preferOpenGround?{left:p.x-half,right:p.x+half,top:p.y+half,bottom:p.y-half}:null};
  if(spot)picker.place(sample,spot.x/px,spot.y/px);
+ // place recalculates focused features and center coordinates but not the
+ // provenance of the automatic suggestion.
+ if(spot)sample.selection=spot.source;
  return sample;
 }
 async function fromFile(file){
