@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Map-Wide Route Search V12</title>
-<!-- SURFACESTRIDE_STUDIO_MAP_WIDE_ROUTING_V12 -->
+<title>SurfaceStride Studio | Multi-Route Soft-First V13</title>
+<!-- SURFACESTRIDE_STUDIO_MULTI_ROUTE_V13 -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -16,7 +16,7 @@
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>ROUTING V12</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>MULTI-ROUTE V13</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
@@ -58,34 +58,40 @@
             <button class="surface-pick" data-preference="paved"><i style="background:#b8c7c0"></i>Paved</button>
             <button class="surface-pick" data-preference="mixed"><i style="background:linear-gradient(45deg,#5ed98c 50%,#f5bb70 50%)"></i>Mixed</button>
           </div>
-          <p class="hint">Walking routing can use pavement. Switch on strict trail routing to permit only connected gravel/dirt segments.</p>
+          <p class="hint">See multiple gravel/dirt route options at once. Allow short paved links between longer trail sections, or disable them for gravel/dirt-only routes.</p>
           <div class="strict-surface-panel">
-            <label class="toggle-row strict-toggle"><span><b>Strict gravel / dirt routing</b><small>Never add a paved road to reach your mileage</small></span><input id="strictSoftToggle" type="checkbox" checked><span class="switch"></span></label>
+            <label class="toggle-row strict-toggle"><span><b>Soft-first route options</b><small>Compare multiple paths, prioritizing gravel and dirt</small></span><input id="strictSoftToggle" type="checkbox" checked><span class="switch"></span></label>
+            <label class="toggle-row"><span><b>Allow short road connections</b><small>Mapped walkable links up to 240 m each; aim for at least 78% gravel/dirt</small></span><input id="shortRoadToggle" type="checkbox" checked><span class="switch"></span></label>
             <div class="strict-type-row" aria-label="Allowed surface for strict routing">
               <button type="button" data-soft-material="both" class="active">Gravel + Dirt</button>
               <button type="button" data-soft-material="gravel">Gravel only</button>
               <button type="button" data-soft-material="dirt">Dirt only</button>
             </div>
-            <p class="hint" id="strictSoftNote">The current map view controls the search area. Zoom out to find more small trails (up to 7.5 km per scan). Trails are joined only where mapped or confirmed gravel/dirt connections exist; disconnected networks will never be connected by pavement.</p>
+            <p class="hint" id="strictSoftNote">Generate up to 4 different soft-first routes from all visible trails. A little road is allowed only on mapped pedestrian-accessible connectors, capped per link and by total road share. Toggle off for gravel/dirt-only choices.</p>
           </div>
           <div class="section-label"><span>04</span> Elevation & terrain</div>
           <div class="pills"><button class="pill" data-terrain="flat">Flat</button><button class="pill active" data-terrain="any">Any hills</button><button class="pill" data-terrain="hilly">Hilly</button></div>
           <label class="toggle-row"><span><b>Avoid busy roads</b><small>Preference only on public walking router</small></span><input id="quietToggle" type="checkbox" checked><span class="switch"></span></label>
           <div class="section-label"><span>05</span> Map building</div>
           <div class="build-mode">
-            <button id="autoMode" class="build-choice active" aria-pressed="true"><span>✦</span><b>Auto generate</b><small>Create a suggested route near the map center</small></button>
+            <button id="autoMode" class="build-choice active" aria-pressed="true"><span>✦</span><b>Auto generate</b><small>Compare several routes from trails across this map</small></button>
             <button id="drawMode" class="build-choice" aria-pressed="false"><span>⌖</span><b>Draw waypoints</b><small>Click and drag points to shape your route</small></button>
           </div>
           <label class="toggle-row"><span><b>Manual off-road lines</b><small>Straight connections without path snapping; verify access</small></span><input id="straightToggle" type="checkbox"><span class="switch"></span></label>
           <button id="generateBtn" class="primary-cta"><span>Generate route</span><span class="cta-circle">↗</span></button>
           <div class="inline-actions">
-            <button id="rerollBtn" title="Try another trail network from the visible map">↻ Reroll</button>
+            <button id="rerollBtn" title="Switch to the next displayed route option">↻ Next option</button>
             <button id="fitRouteBtn" title="Zoom to see your complete generated route">⊡ Fit route</button>
             <button id="reverseBtn" title="Reverse direction">⇆ Reverse</button>
             <button id="undoBtn" title="Remove last waypoint">↶ Undo</button>
             <button id="clearBtn" class="danger" title="Clear route">Clear</button>
           </div>
-          <div class="note" id="routeMessage" role="status">Pan or zoom the satellite map to include the trails you want. Strict routing searches several trail networks across the visible area, not only the map center. Use Route zone to focus the search.</div>
+          <div class="note" id="routeMessage" role="status">Zoom to include several trails, then Generate route. Compare the colored route options together on the map and click the one you like.</div>
+          <div class="route-choices-panel" id="routeChoices" hidden>
+            <div class="route-choices-heading"><b>Compare route options</b><span id="routeChoiceCount">0 routes</span></div>
+            <div class="route-choices-list" id="routeChoicesList"></div>
+            <p>Colored lines are route alternatives. Dashed amber sections are short road connections, not gravel or dirt.</p>
+          </div>
         </section>
         <section class="tab-panel" id="tab-saved" hidden>
           <div class="section-label"><span>★</span> Your saved routes</div>
@@ -218,9 +224,9 @@
 <script src="./aerial.js?build=studio3"></script>
 <script src="../share-route.js?build=studio1"></script>
 <script src="./engine.js?build=surface-lab-v4b-20261109"></script>
-<script src="./strict-soft.js?build=map-wide-v12-20261109"></script>
+<script src="./strict-soft.js?build=multi-route-v13-20261110"></script>
 <script src="./imagery-providers.js?build=imagery-fallback-v9"></script>
 <script src="./surface-vision.js?build=trail-first-v11b"></script>
-<script src="./app.js?build=map-wide-v12-20261109"></script>
+<script src="./app.js?build=multi-route-v13-20261110"></script>
 </body>
 </html>

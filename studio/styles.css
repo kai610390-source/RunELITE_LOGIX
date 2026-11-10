@@ -60,3 +60,21 @@
 .route-evidence{font-size:10px;color:#4e8062;background:#edf7eb;padding:9px;border-radius:8px;margin-top:8px;line-height:1.5}
 .route-evidence.warning{background:#fbf5df;color:#886d39}
 .trail-review .vision-review-button{background:#e3f4e8;color:#2d704a;border:1px solid #c5e2c9}
+
+/* Multi-route V13: compact comparable choices with clear road-link labeling */
+.route-choices-panel{margin-top:15px;padding:12px;border:1px solid #cfdfd1;border-radius:12px;background:#f3f8f1}
+.route-choices-heading{display:flex;justify-content:space-between;gap:9px;align-items:center;margin-bottom:10px}
+.route-choices-heading b{font-size:12px;color:#285b40}
+.route-choices-heading span{font-size:10px;color:#649875}
+.route-choices-list{display:grid;gap:7px}
+.route-option-card{display:flex;flex-direction:column;gap:4px;text-align:left;
+ width:100%;padding:10px 11px 10px 14px;border-radius:9px;
+ border:1px solid #dbe7dc;border-left:5px solid var(--route-option-color,#237452);
+ background:#fff;color:#375b46;cursor:pointer}
+.route-option-card:hover{background:#e9f5e9}
+.route-option-card.selected{background:#e0f3e6;border-color:var(--route-option-color,#237452);border-left-width:5px}
+.route-option-card strong{font-size:12px;font-weight:850}
+.route-option-card span{font-size:11px;color:#356f4b}
+.route-option-card small{font-size:9px;color:#839f8c}
+.route-choices-panel p{color:#738d7b;font-size:10px;line-height:1.5;margin:10px 2px 0}
+.route-alternative-line{cursor:pointer}

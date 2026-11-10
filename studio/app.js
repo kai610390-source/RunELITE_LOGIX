@@ -10,9 +10,11 @@ const VISION=window.SurfaceStrideVision;
 const $=id=>document.getElementById(id);
 const COLORS={grass:'#50d487',dirt:'#b7825a',gravel:'#efb061',paved:'#9db6b0',track:'#d08cbd',unknown:'#c6cbd0',possible:'#f7da74'};
 const KM=1.609344,MI=1609.344;
+const OPTION_COLORS=['#1b9a75','#9264ce','#ed9a42','#358bc3','#ce698a'];
 const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,preference:'soft',
  terrain:'any',quiet:true,waypoints:[],straight:false,reroll:0,working:false,
- strictSoft:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
+ strictSoft:true,allowRoadLinks:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
+ routeOptions:[],optionIndex:0,optionLayer:null,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
  aerialOn:false,aerialCandidates:[],aerialBusy:false,
  routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
@@ -43,6 +45,7 @@ function setupMap(){
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,pane:'labels',opacity:.9})
  ];
  st.labels.forEach(layer=>layer.addTo(map));
+ st.optionLayer=L.layerGroup().addTo(map);
  st.routeLayer=L.layerGroup().addTo(map);
  st.markerLayer=L.layerGroup().addTo(map);
  st.gravelLayer=L.layerGroup().addTo(map);
@@ -148,7 +151,7 @@ function setMode(mode,preserveRoute=false){
  $('mapStatus').innerHTML='SATELLITE VIEW <span>·</span> '+(mode==='draw'?'Click to add waypoints':'Automatic route generation');
 }
 function clearRoute(clearPoints=true){
- st.routeVersion++;st.route=null;st.routeLayer.clearLayers();
+ clearRouteOptions();st.routeVersion++;st.route=null;st.routeLayer.clearLayers();
  if(clearPoints){st.waypoints=[];st.markerLayer.clearLayers();}
  $('routeSummary').hidden=true;$('bottomRouteName').textContent='No route selected';
  $('analysisStatus').textContent='Generate a route to see elevation and directions';
@@ -176,9 +179,15 @@ function drawRoute(preserveView=false){
  st.routeLayer.clearLayers();
  const all=L.layerGroup();
  L.polyline(r.coordinates,{color:'#fff',weight:11,opacity:.96,lineJoin:'round',interactive:false}).addTo(all);
- const main=L.polyline(r.coordinates,{color:'#206647',weight:6,opacity:1,lineJoin:'round'});
+ const activeColor=st.routeOptions.length?OPTION_COLORS[st.optionIndex%OPTION_COLORS.length]:'#206647';
+ const main=L.polyline(r.coordinates,{color:activeColor,weight:6.3,opacity:1,lineJoin:'round'});
  main.on('click',routePopup);main.addTo(all);
  for(const span of r.spans||[]){
+  if(span.evidence==='road'){
+   L.polyline(span.points,{color:'#f8bb69',weight:6.7,opacity:1,
+    dashArray:'5 6',lineJoin:'round',interactive:false}).addTo(all);
+   continue;
+  }
   const color=COLORS[span.surface];if(!color||span.surface==='unknown')continue;
   L.polyline(span.points,{color,weight:span.evidence==='tagged'?4.7:3.4,
    opacity:span.evidence==='tagged'?1:.83,lineJoin:'round',interactive:false}).addTo(all);
@@ -209,8 +218,12 @@ function surfaceSummary(){
   item.append(strong,span);breakdown.append(item);
  }
  $('surfaceConfidence').textContent=r.strictSoft?
-   'NO PAVED CONNECTORS · '+r.tagged_percent+'% OSM-tagged · '+r.reviewed_percent+
-     '% human-reviewed · 0% surface unknown':
+   (r.road_meters?
+     (r.soft_percent||0)+'% soft surface · '+r.road_miles.toFixed(2)+
+      ' mi mapped road links ('+(r.road_percent||0)+'% of route) · '+
+      (r.surface_percent?.unknown||0)+'% road surface untagged · ':
+     'GRAVEL / DIRT ONLY · ')+
+   r.tagged_percent+'% OSM-tagged · '+r.reviewed_percent+'% human-reviewed':
    ((r.surface_data_status==='scanned'?
     (r.tagged_percent||0)+'% OSM-tagged · '+(r.inferred_percent||0)+'% inferred · '+(r.unknown_percent||0)+'% unknown':
     'Surface lookup pending or unavailable. Unknown does not mean paved.')+
@@ -295,7 +308,57 @@ function analyzeRoute(routeVersion){
   'Route ready. Inspect the surface colors, edit waypoints, or export GPX for COROS.');
  });
 }
-function showRoute(route,{preserveView=false,analyze=true}={}){
+function clearRouteOptions(){
+ st.routeOptions=[];st.optionIndex=0;
+ st.optionLayer?.clearLayers();
+ const panel=$('routeChoices');if(panel)panel.hidden=true;
+ const list=$('routeChoicesList');if(list)list.replaceChildren();
+}
+function selectRouteOption(index){
+ if(!st.routeOptions?.[index])return;
+ st.optionIndex=index;
+ const selected=st.routeOptions[index];
+ selected.route.optionIndex=index;
+ showRoute(selected.route,{preserveView:true,fromOption:true});
+ renderRouteOptions();
+ status('Option '+(index+1)+' of '+st.routeOptions.length+' · '+selected.note);
+}
+function renderRouteOptions(){
+ const panel=$('routeChoices'),list=$('routeChoicesList');
+ st.optionLayer?.clearLayers();list.replaceChildren();
+ if(!st.routeOptions.length){panel.hidden=true;return;}
+ panel.hidden=false;
+ $('routeChoiceCount').textContent=st.routeOptions.length+' routes shown on the map';
+ st.routeOptions.forEach(({route,note},index)=>{
+  const color=OPTION_COLORS[index%OPTION_COLORS.length],selected=index===st.optionIndex;
+  const line=L.polyline(route.coordinates,{color,weight:selected?7:5,
+   opacity:selected?.92:.76,lineJoin:'round',className:'route-alternative-line'});
+  line.bindTooltip('Option '+(index+1)+' · '+route.distance_miles.toFixed(2)+
+   ' mi · '+route.soft_percent.toFixed(0)+'% soft',{sticky:true});
+  line.on('click',event=>{
+   L.DomEvent.stopPropagation(event);selectRouteOption(index);
+  });
+  line.addTo(st.optionLayer);
+  const button=document.createElement('button');
+  button.type='button';button.className='route-option-card'+(selected?' selected':'');
+  button.style.setProperty('--route-option-color',color);
+  button.setAttribute('aria-pressed',String(selected));
+  const label=document.createElement('strong');
+  label.textContent='Route '+(index+1)+' · '+route.distance_miles.toFixed(2)+' mi';
+  const figures=document.createElement('span');
+  figures.textContent=route.soft_percent.toFixed(0)+'% gravel/dirt · '+
+   route.road_miles.toFixed(2)+' mi road';
+  const detail=document.createElement('small');
+  detail.textContent=route.mode==='loop'?'Loop':route.mode==='out-and-back'?
+   'Out & back':'Point to point';
+  if(route.surface_percent.unknown>0)detail.textContent+=' · some road surface untagged';
+  button.append(label,figures,detail);
+  button.addEventListener('click',()=>selectRouteOption(index));
+  list.append(button);
+ });
+}
+function showRoute(route,{preserveView=false,analyze=true,fromOption=false}={}){
+ if(!fromOption)clearRouteOptions();
  st.routeVersion++;st.route=route;
  drawRoute(preserveView);updateStats();
  const version=st.routeVersion;
@@ -318,34 +381,37 @@ function offset(p,bearing,meters){
 }
 async function autoGenerate(){
  if(st.working||!st.map)return;
- setBusy(true,'Calculating route…');
- status(st.strictSoft?'Scanning ALL visible mapped gravel/dirt trails, then connecting compatible networks without paved roads.':
+ setBusy(true,'Finding route options…');
+ status(st.strictSoft?
+  'Scanning all visible gravel/dirt trails and testing short road links between networks…':
   'Connecting walking routes. Satellite surfaces are classified after the route is drawn.');
  try{
   const center=centerForAuto();
   const base=st.reroll?offset(center,(st.reroll*131)%360,Math.min(470,90+st.reroll*43)):center;
-  let route,strictNote='';
+  let route,strictNote='',choices=null;
   if(st.strictSoft){
-   if(!STRICT)throw Error('Strict surface router did not load. Refresh the Studio.');
-   const visible=st.zone?{
+   if(!STRICT?.planOptions)throw Error('Multiple-route planner unavailable. Refresh the Studio.');
+   const bounds=st.zone?{
     south:st.zone.sw.lat,west:st.zone.sw.lng,
     north:st.zone.ne.lat,east:st.zone.ne.lng
    }:{
     south:st.map.getBounds().getSouth(),west:st.map.getBounds().getWest(),
     north:st.map.getBounds().getNorth(),east:st.map.getBounds().getEast()
    };
-   const data=await STRICT.plan({
+   const data=await STRICT.planOptions({
     lat:base.lat,lon:Number.isFinite(base.lon)?base.lon:base.lng,
     miles:st.miles,shape:st.shape,material:st.softMaterial,
-    bounds:visible,variant:st.reroll
+    bounds,allowRoadLinks:st.allowRoadLinks,maxRoadMeters:240,maxOptions:4
    },{
     reviews:VISION?.getReviews?.()||{},
     connectors:VISION?.getConnectors?.()||[],
-    onProgress:scan=>status('Searching visible trail networks: '+
-     scan.completed+'/'+scan.total+' map regions · '+scan.loaded+' loaded'+
-     (scan.failed?' · '+scan.failed+' unavailable':'')+'…')
+    onProgress:progress=>status('Exploring nearby trail networks: '+
+     progress.completed+'/'+progress.total+' map regions · '+
+     progress.loaded+' loaded'+(progress.failed?' · '+progress.failed+' unavailable':''))
    });
-   route=data.route;strictNote=data.note;route.strictNote=data.note;
+   if(!data?.options?.length)throw Error(data?.note||'No viable route options were found.');
+   choices=data.options;route=choices[0].route;
+   strictNote='Showing '+choices.length+' options · '+data.note+' '+choices[0].note;
   }else if(st.shape==='point-to-point'){
    const a={lat:base.lat,lon:base.lng},b=offset(base,(st.reroll*61+55)%360,st.miles*MI*.85);
    route=await E.snapRoute([a,b]);route.mode='point-to-point';route.title='Point-to-point route';
@@ -357,13 +423,19 @@ async function autoGenerate(){
    route=data.routes[0];route.title='Suggested '+(st.shape==='loop'?'loop':'out & back');
   }
   st.waypoints=[];st.markerLayer.clearLayers();
-  showRoute(route,{preserveView:!!route.strictSoft});
+  if(choices){
+   st.routeOptions=choices;st.optionIndex=0;
+   route.strictNote=strictNote;
+   showRoute(route,{preserveView:true,fromOption:true});
+   renderRouteOptions();
+  }else showRoute(route);
   status(route.strictSoft?strictNote:
     'Suggested '+route.distance_miles.toFixed(2)+'-mile route. Surface tags are loading separately.');
- }catch(err){status('Could not generate route: '+(err?.message||err));
-   message(st.strictSoft?'No qualifying connected gravel/dirt route was found in the visible search area. Zoom out, move the map, or review missing trail sections.':
-    'Route unavailable. Try another area or draw waypoints.',7500);}
- finally{setBusy(false);}
+ }catch(err){
+  status('Could not generate route options: '+(err?.message||err));
+  message(st.strictSoft?'Try zooming out for more connecting trails, choosing a shorter distance, or turning off short road links.':
+   'Route unavailable. Try another area or draw waypoints.',7000);
+ }finally{setBusy(false);}
 }
 function deferManual(){lastRouteRequest++;clearTimeout(manualTimer);manualTimer=setTimeout(manualBuild,550);}
 async function manualBuild(){
@@ -417,6 +489,9 @@ function reverseRoute(){
  }
 }
 function reroll(){
+ if(st.routeOptions.length&&st.mode==='auto'){
+  selectRouteOption((st.optionIndex+1)%st.routeOptions.length);return;
+ }
  st.reroll++;
  if(st.mode==='draw'){if(st.waypoints.length>=2)manualBuild();else message('Place two waypoints first.');return;}
  autoGenerate();
@@ -966,10 +1041,14 @@ function wires(){
   $('distanceLabel').textContent=st.miles.toFixed(1);$('kmLabel').textContent=(st.miles*KM).toFixed(1)+' km';
  }));
  $('quietToggle').addEventListener('change',e=>{st.quiet=e.target.checked;});
+ $('shortRoadToggle').addEventListener('change',e=>{
+  st.allowRoadLinks=e.target.checked;
+  if(st.route)status('Short road-link preference changed. Generate routes again to apply it.');
+ });
  $('strictSoftToggle').addEventListener('change',e=>{
   st.strictSoft=e.target.checked;
   $('strictSoftNote').textContent=st.strictSoft?
-   'Search the visible map for multiple connected gravel/dirt trails. Zoom out for more networks (up to 7.5 km scanned). Pavement is never inserted.':
+   'Show several soft-surface routes at once. Short mapped road connections are optional and limited to 240 m each.':
    'Standard walking routing can include paved roads. Surface percentages are estimated afterward.';
   if(st.route)status('Routing policy changed. Regenerate the route to apply it.');
  });
