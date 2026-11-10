@@ -573,29 +573,40 @@ function trailReviewPopup(s){
  title.textContent=s.likelyTrail?'Possible narrow mapped path':
   (s.surface==='gravel'?'Mapped gravel':s.surface==='dirt'?'Mapped dirt':'Mapped '+s.surface);
  const text=document.createElement('p');
- text.textContent=(s.name||'Unnamed footpath')+' · '+(s.highway||'path')+
-  ' · '+(s.evidence==='tagged'?'Surface explicitly tagged':s.evidence==='inferred'?'Surface inferred':'No surface information');
+ const review=VISION?.getReviews?.()?.[s.segmentKey],prediction=st.aiSuggestions.get(s.segmentKey);
+ text.textContent=(s.name||'Unnamed footpath')+' · '+(s.highway||'path')+' · '+
+  (review?.confirmed?'Your confirmed surface review: '+review.label:
+   s.evidence==='tagged'?'OSM surface tag: '+s.surface:
+   prediction?.label&&prediction.label!=='unknown'?'Model suggests '+prediction.label+' (UNVERIFIED)':
+   'Surface not classified');
  const note=document.createElement('p');note.className='muted';
- note.textContent='Even mapped paths can be blocked or privately restricted. Check access and actual surface before running.';
- const button=document.createElement('button');button.textContent='Add this small path to my route';
- button.addEventListener('click',()=>addReviewedSegment({lat:s.a[0],lon:s.a[1]},
+ note.textContent='Zoom in to inspect grass vs gravel vs dirt vs pavement. Confirm only what you actually recognize; verify pedestrian access.';
+ const train=document.createElement('button');
+ train.textContent='Zoom in / Train & review this surface';
+ train.className='vision-review-button';
+ train.addEventListener('click',()=>startTraining(s));
+ const add=document.createElement('button');add.textContent='Add this small path to my route';
+ add.addEventListener('click',()=>addReviewedSegment({lat:s.a[0],lon:s.a[1]},
    {lat:s.b[0],lon:s.b[1]},'mapped footpath'));
  const view=document.createElement('button');view.textContent='Inspect in Instant Street View';
  view.style.background='#eaf4e8';view.style.color='#276044';
  view.addEventListener('click',()=>window.open('https://www.instantstreetview.com/s/'+
-   ((s.a[0]+s.b[0])/2).toFixed(6)+','+((s.a[1]+s.b[1])/2).toFixed(6),'_blank','noopener,noreferrer'));
- div.append(title,text,note,button,view);return div;
+  ((s.a[0]+s.b[0])/2).toFixed(6)+','+((s.a[1]+s.b[1])/2).toFixed(6),'_blank','noopener,noreferrer'));
+ div.append(title,text,note,train,add,view);return div;
 }
 function drawGravel(segments){
  st.gravelLayer.clearLayers();st.gravelSegments=segments;
- const ids=new Set(),possible=new Set(),tiny=new Set();
+ const ids=new Set(),possible=new Set(),tiny=new Set(),reviews=VISION?.getReviews?.()||{};
  for(const s of segments){
-  const kind=s.likelyTrail?'possible':s.surface;
+  const human=reviews[s.segmentKey]?.confirmed?reviews[s.segmentKey]:null;
+  const prediction=st.aiSuggestions.get(s.segmentKey);
+  const strong=prediction?.label&&prediction.label!=='unknown'&&prediction.confidence>=.75;
+  const kind=human?human.label:strong?prediction.label:s.likelyTrail?'possible':s.surface;
   const col=COLORS[kind]||COLORS.unknown;
   const line=L.polyline([s.a,s.b],{
-   color:col,weight:s.likelyTrail?4:s.evidence==='tagged'?4.3:3.1,
-   dashArray:s.likelyTrail?'6 7':s.microtrail?'3 5':undefined,
-   opacity:s.evidence==='tagged'?.97:.88,
+   color:col,weight:human?5.4:s.likelyTrail?4:s.evidence==='tagged'?4.3:3.1,
+   dashArray:human?undefined:strong?'3 6':s.likelyTrail?'6 7':s.microtrail?'3 5':undefined,
+   opacity:human?1:s.evidence==='tagged'?.97:.88,
    interactive:true
   });
   line.bindPopup(()=>trailReviewPopup(s),{maxWidth:270});
@@ -841,6 +852,29 @@ function wires(){
   $('distanceLabel').textContent=st.miles.toFixed(1);$('kmLabel').textContent=(st.miles*KM).toFixed(1)+' km';
  }));
  $('quietToggle').addEventListener('change',e=>{st.quiet=e.target.checked;});
+ $('strictSoftToggle').addEventListener('change',e=>{
+  st.strictSoft=e.target.checked;
+  $('strictSoftNote').textContent=st.strictSoft?
+   'Strict routing uses only connected gravel/dirt OSM tags or your confirmed labels. Pavement is never inserted; distance can be shorter.':
+   'Standard walking routing can include paved roads. Surface percentages are estimated afterward.';
+  if(st.route)status('Routing policy changed. Regenerate the route to apply it.');
+ });
+ document.querySelectorAll('[data-soft-material]').forEach(b=>b.addEventListener('click',()=>{
+  st.softMaterial=b.dataset.softMaterial;
+  document.querySelectorAll('[data-soft-material]').forEach(x=>x.classList.toggle('active',x===b));
+  if(st.route)status('Material changed. Regenerate to use only '+st.softMaterial+' paths.');
+ }));
+ $('trainMapCenterBtn').addEventListener('click',()=>{
+  const p=st.map.getCenter();trainAt(p.lat,p.lng);
+ });
+ $('trainMapBtn').addEventListener('click',()=>{
+  const p=st.map.getCenter();trainAt(p.lat,p.lng);
+ });
+ $('trainUploadBtn').addEventListener('click',()=>$('trainFile').click());
+ $('trainFile').addEventListener('change',e=>trainUpload(e.target.files?.[0]));
+ document.querySelectorAll('[data-training-label]').forEach(b=>
+  b.addEventListener('click',()=>labelSample(b.dataset.trainingLabel)));
+ $('trainBatchBtn').addEventListener('click',batchAnalyze);
  $('straightToggle').addEventListener('change',e=>{
   st.straight=e.target.checked;
   if(st.mode==='draw'&&st.waypoints.length>=2)deferManual();
@@ -900,7 +934,7 @@ function wires(){
 }
 function start(){
  if(!E){$('routeMessage').textContent='Studio engine did not load. Refresh this page.';return;}
- wires();setupMap();renderSaved();openShared();
+ wires();setupMap();renderSaved();trainerCounts();openShared();
 }
 window.SurfaceStrideStudio={_state:st,_test:{esc}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
