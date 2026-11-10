@@ -254,7 +254,7 @@ function pickStart(graph,center,componentsList){
  }
  return best;
 }
-function shortest(graph,start,limit=Infinity){
+function shortest(graph,start,limit=Infinity,permit=null,maxStates=Infinity){
  const dist=new Map([[start,0]]),parent=new Map(),heap=[];
  function push(n,amount){
   heap.push([amount,n]);let i=heap.length-1;
@@ -269,10 +269,13 @@ function shortest(graph,start,limit=Infinity){
   return first;
  }
  push(start,0);
+ let states=0;
  while(heap.length){
   const [value,u]=pop();
   if(value!==dist.get(u)||value>limit)continue;
+  if(++states>maxStates)break;
   for(const n of graph.adj.get(u)||[]){
+   if(permit&&!permit(n.edge))continue;
    const cand=value+n.edge.length;
    if(cand<(dist.get(n.to)??Infinity)-1e-7){
     dist.set(n.to,cand);parent.set(n.to,{node:u,edge:n.edge});push(n.to,cand);
@@ -299,6 +302,9 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
  let total=0,used=0,reviewed=0,inferred=0,road=0,roadSections=0;
  let roadRun=0,maxRoadRun=0;
  const roadNames=new Set(),softWays=new Set();
+ const edgeUses=new Map();
+ for(const edge of walk.edges)edgeUses.set(edge.id,(edgeUses.get(edge.id)||0)+1);
+ let repeatedDistance=0,uniqueDistance=0;
  for(let i=0;i<walk.edges.length;i++){
   const e=walk.edges[i],from=walk.ids[i],to=walk.ids[i+1];
   if(!e||!graph.nodes.has(to))throw Error('Broken route edge');
@@ -309,6 +315,11 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
   const surface=e.material==='gravel'?'gravel':e.material==='dirt'?'dirt':
    e.material==='paved'?'paved':'unknown';
   byMaterial[surface]+=e.length;total+=e.length;
+  if(edgeUses.get(e.id)>1){
+   if(walk.edges.slice(0,i).some(previous=>previous.id===e.id))
+    repeatedDistance+=e.length;
+   else uniqueDistance+=e.length;
+  }else uniqueDistance+=e.length;
   if(e.evidence==='osm'){used+=e.length;softWays.add(String(e.wayId));}
   else if(e.evidence==='reviewed'){reviewed+=e.length;softWays.add(String(e.wayId));}
   else if(e.evidence==='inferred'){inferred+=e.length;softWays.add(String(e.wayId));}
@@ -320,8 +331,9 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
   const evidence=e.evidence==='osm'?'tagged':e.evidence==='road'?'road':
    e.evidence==='inferred'?'inferred':'reviewed';
   let last=spans[spans.length-1];
-  if(!last||last.surface!==surface||last.evidence!==evidence){
-   last={surface,evidence,points:[coordinates[coordinates.length-1]]};
+  const retraced=(edgeUses.get(e.id)||0)>1;
+  if(!last||last.surface!==surface||last.evidence!==evidence||last.retraced!==retraced){
+   last={surface,evidence,retraced,points:[coordinates[coordinates.length-1]]};
    spans.push(last);
   }
   for(let j=1;j<path.length;j++){
@@ -358,7 +370,12 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
   probable_soft_percent:Number((inferred/total*100).toFixed(1)),
   inferred_miles:Number((inferred/MI).toFixed(2)),
   unknown_percent:pct('unknown'),match_percent:pct('dirt')+pct('gravel'),
-  strictSoft:true,allowRoadLinks:road>0,road_meters:Math.round(road),
+  strictSoft:true,allowRoadLinks:road>0,
+  retrace_miles:Number((repeatedDistance/MI).toFixed(2)),
+  retrace_percent:Number((repeatedDistance/total*100).toFixed(1)),
+  unique_miles:Number((uniqueDistance/MI).toFixed(2)),
+  retraced_edges:[...edgeUses.values()].filter(n=>n>1).length,
+  road_meters:Math.round(road),
   road_miles:Number((road/MI).toFixed(2)),road_percent:Number((road/total*100).toFixed(1)),
   road_sections:roadSections,max_road_link_m:Math.round(maxRoadRun),
   trail_ways_count:softWays.size,
@@ -390,6 +407,62 @@ function outBack(graph,start,length,shape){
  const one=pathTo(search.parent,start,best);
  const walk=shape==='out-and-back'?joinWalk(one,reverseWalk(one)):one;
  return {walk,stem:0,hasCycle:false};
+}
+// Create a route that explores additional soft trail branches and backtracks
+// over the connecting stem. Repeated edges are deliberate and counted twice;
+// we never invent off-network geometry or retrace long paved connectors.
+function branchExplore(graph,base,target,{maxDetours=4}={}){
+ if(!base?.edges?.length)return null;
+ let walk={ids:base.ids.slice(),edges:base.edges.slice()};
+ let total=walk.edges.reduce((sum,e)=>sum+e.length,0);
+ const used=new Set(walk.edges.map(e=>e.id));
+ let detours=0,addedMeters=0;
+ while(detours<maxDetours&&total<target-45){
+  const remaining=target-total;
+  const maximum=Math.min(2600,remaining*.58);
+  if(maximum<27)break;
+  // Only nodes along the actual route can begin an excursion. Include
+  // junctions in the center, not merely the route endpoints.
+  const anchors=[],seen=new Set();
+  for(let i=0;i<walk.ids.length;i++){
+   const node=walk.ids[i];
+   if(seen.has(node))continue;seen.add(node);
+   if((graph.adj.get(node)||[]).some(n=>n.edge.evidence!=='road'&&!used.has(n.edge.id)))
+    anchors.push({node,index:i});
+  }
+  // Bound CPU work for dense urban OSM networks.
+  const stride=Math.max(1,Math.ceil(anchors.length/26));
+  let best=null;
+  const onRoute=new Set(walk.ids);
+  for(let k=0;k<anchors.length;k+=stride){
+   const anchor=anchors[k];
+   const search=shortest(graph,anchor.node,maximum,
+    e=>e.evidence!=='road'&&!used.has(e.id),1050);
+   for(const [node,d] of search.dist){
+    if(node===anchor.node||d<22||onRoute.has(node))continue;
+    if(d*2>remaining*1.15)continue;
+    const nearby=graph.adj.get(node)||[];
+    const leaf=nearby.filter(n=>n.edge.evidence!=='road'&&!used.has(n.edge.id)).length<=1;
+    const error=Math.abs(remaining-d*2);
+    const score=error+(leaf?-18:0)-Math.min(260,d)*.04;
+    if(!best||score<best.score){
+     const path=pathTo(search.parent,anchor.node,node);
+     if(path?.edges?.length)best={index:anchor.index,path,score,meters:d};
+    }
+   }
+  }
+  if(!best)break;
+  const excursion=joinWalk(best.path,reverseWalk(best.path));
+  // Splice the round-trip branch at the mapped junction.
+  const i=best.index;
+  walk={
+   ids:walk.ids.slice(0,i+1).concat(excursion.ids.slice(1),walk.ids.slice(i+1)),
+   edges:walk.edges.slice(0,i).concat(excursion.edges,walk.edges.slice(i))
+  };
+  for(const edge of best.path.edges)used.add(edge.id);
+  total+=2*best.meters;addedMeters+=2*best.meters;detours++;
+ }
+ return {walk,detours,addedMeters,total};
 }
 function findLoop(graph,start,length){
  // Fundamental cycles of an undirected DFS tree; no artificial paved connector.
@@ -615,12 +688,27 @@ function networkWalks(graph,networks,center,target,shape){
   try{
    if(shape==='loop'){
     const loop=findLoop(graph,entry.start,target);
-    if(loop)alternatives.push({...loop,shape:'loop',start:entry.start,
-     component:entry.component,offset:entry.distance});
+    if(loop){
+     alternatives.push({...loop,shape:'loop',start:entry.start,
+      component:entry.component,offset:entry.distance});
+     const explored=branchExplore(graph,loop.walk,target,{maxDetours:4});
+     if(explored?.detours)alternatives.push({...loop,walk:explored.walk,
+      detours:explored.detours,shape:'loop',start:entry.start,
+      component:entry.component,offset:entry.distance});
+    }
    }
    const basic=outBack(graph,entry.start,target,shape==='loop'?'out-and-back':shape);
    alternatives.push({...basic,shape:shape==='loop'?'out-and-back':shape,
     start:entry.start,component:entry.component,offset:entry.distance});
+   // Starting with a shorter stem reserves distance for other small trails
+   // branching from the route. This allows multi-spur runs without roads.
+   if(shape!=='point-to-point'){
+    const partial=outBack(graph,entry.start,target*.62,'out-and-back');
+    const explored=branchExplore(graph,partial.walk,target,{maxDetours:4});
+    if(explored?.detours)alternatives.push({...partial,
+     walk:explored.walk,detours:explored.detours,shape:'out-and-back',
+     start:entry.start,component:entry.component,offset:entry.distance});
+   }
   }catch(err){/* A disconnected branch might not provide the requested shape. */}
  }
  for(const item of alternatives){
@@ -697,8 +785,9 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
   if(routes.some(entry=>{
    let intersection=0;
    for(const key of softEdges)if(entry.edgeKeys.has(key))intersection++;
-   const overlap=intersection/Math.max(1,Math.min(softEdges.size,entry.edgeKeys.size));
-   return overlap>.79&&Math.abs(total-entry.total)<MI*.65;
+   const union=softEdges.size+entry.edgeKeys.size-intersection;
+   const overlap=intersection/Math.max(1,union);
+   return overlap>.87&&Math.abs(total-entry.total)<MI*.65;
   }))continue;
   const route=routeFromWalk(graph,choice.walk,
    choice.hasCycle?'Soft-surface loop':choice.shape==='out-and-back'?
@@ -713,6 +802,7 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
    (route.surface_percent.unknown||0)/100*.55+
    shapePenalty+choice.offset/45000;
   route.trail_ways_count=route.trail_ways_count||0;
+  route.branch_detours=choice.detours||0;
   route.networks_found=originalNetworks;
   route.road_link_limit_m=Math.min(300,Math.max(20,maxRoadMeters));
   route.scanned_tiles=scanMeta?.loaded||1;
@@ -722,7 +812,9 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
    route.soft_percent.toFixed(1)+'% likely gravel/dirt ('+
    route.confirmed_soft_percent.toFixed(1)+'% mapped/reviewed, '+
    route.probable_soft_percent.toFixed(1)+'% inferred from OSM trail type) · '+
-   route.road_miles.toFixed(2)+' mi short mapped road/footway connectors'+
+   route.road_miles.toFixed(2)+' mi short mapped road/footway connectors · '+
+   route.retrace_miles.toFixed(2)+' mi deliberately retraced'+
+   (route.branch_detours?' across '+route.branch_detours+' branch excursion(s)':'')+
    (route.surface_percent.unknown?' (some road surfaces not tagged)':'')+
    '. Unknown-surface trail classifications are estimates from OSM path types; verify access and surfaces before running.'+
    (scanMeta?.missing?' '+scanMeta.missing+' map regions were unavailable.':'')+
@@ -805,7 +897,7 @@ async function planOptions(options,{fetcher=fetch,reviews={},connectors=[],onPro
   maxOptions:options.maxOptions||4,scanMeta:scan
  },reviews,connectors);
 }
-window.SurfaceStrideStrictSoft={plan,planOptions,planBetween,buildFromData,buildOptionsFromData,_test:{likelyNatural,scanRegion,loadVisible,bridgeNetworks,networkWalks,chooseNetworkWalk,routeBetweenData,
+window.SurfaceStrideStrictSoft={plan,planOptions,planBetween,buildFromData,buildOptionsFromData,_test:{branchExplore,likelyNatural,scanRegion,loadVisible,bridgeNetworks,networkWalks,chooseNetworkWalk,routeBetweenData,
   graphFromElements,components,shortest,pathTo,findLoop,outBack,material,keyFor,routeFromWalk,load,access
 }};
 })();
