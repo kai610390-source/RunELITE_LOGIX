@@ -525,6 +525,32 @@ function labelSample(label){
     'Training example saved. The classifier improves as you add diverse labels.',6600);
  }catch(e){message('Could not save label: '+(e?.message||e),6400);}
 }
+function trainRandom(){
+ if(!st.map)return;
+ const c=st.map.getCenter(),angle=Math.random()*Math.PI*2,meters=35+Math.random()*230;
+ const lat=c.lat+meters*Math.cos(angle)/111195;
+ const lon=c.lng+meters*Math.sin(angle)/(111195*Math.max(.15,Math.cos(c.lat*Math.PI/180)));
+ trainAt(lat,lon);
+}
+function exportTrainingSet(){
+ if(!VISION)return;
+ try{
+  const json=JSON.stringify(VISION.exportTraining(),null,2);
+  download(json,'surfacestride-austin-training-labels.json','application/json');
+  message('Labeled color/texture features exported. No NAIP images are included.',6000);
+ }catch(e){message('Could not export labels: '+(e?.message||e),6000);}
+}
+async function importTrainingSet(file){
+ if(!file||!VISION)return;
+ try{
+  if(file.size>3000000)throw Error('Use a training JSON file under 3 MB');
+  const json=JSON.parse(await file.text());
+  const stats=VISION.importTraining(json);
+  trainerCounts();predictionLine(st.trainerSample);
+  message('Labeled examples imported. '+Object.values(stats).reduce((a,b)=>a+b,0)+' samples now saved locally.',6500);
+ }catch(e){message('Could not import labels: '+(e?.message||e),6500);}
+ finally{$('importDatasetFile').value='';}
+}
 async function batchAnalyze(){
  if(st.batchBusy||!VISION)return;
  let c=VISION.count(),total=Object.values(c).reduce((a,b)=>a+b,0);
@@ -906,6 +932,10 @@ function wires(){
  document.querySelectorAll('[data-training-label]').forEach(b=>
   b.addEventListener('click',()=>labelSample(b.dataset.trainingLabel)));
  $('trainBatchBtn').addEventListener('click',batchAnalyze);
+ $('trainRandomBtn').addEventListener('click',trainRandom);
+ $('exportDatasetBtn').addEventListener('click',exportTrainingSet);
+ $('importDatasetBtn').addEventListener('click',()=>$('importDatasetFile').click());
+ $('importDatasetFile').addEventListener('change',e=>importTrainingSet(e.target.files?.[0]));
  $('straightToggle').addEventListener('change',e=>{
   st.straight=e.target.checked;
   if(st.mode==='draw'&&st.waypoints.length>=2)deferManual();
