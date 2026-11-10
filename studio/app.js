@@ -819,13 +819,16 @@ async function scanAerial(){
  const A=window.SurfaceStrideAerial;
  if(!A?.scan){$('aerialStatus').textContent='Aerial detection script was blocked. Refresh the page.';return;}
  st.aerialBusy=true;$('aerialScanBtn').disabled=true;
- $('aerialStatus').textContent='Scanning a roughly 510 m-wide image around the center of the map…';
+ $('aerialStatus').textContent='Scanning several aerial patches for narrow visible trail corridors…';
  try{
-  const candidates=await A.scan(st.map.getCenter());
+  const candidates=await A.scan(st.map,{onProgress:p=>{
+    $('aerialStatus').textContent='Aerial scan: '+p.done+'/'+p.total+' patches · '+
+      p.candidates+' possible trail corridors'+(p.errorCount?' · '+p.errorCount+' imagery failures':'')+'…';
+   }});
   st.aerialCandidates=candidates;st.aerialLayer.clearLayers();
   for(const candidate of candidates){
    const l=L.polyline([[candidate.a.lat,candidate.a.lon],[candidate.b.lat,candidate.b.lon]],{
-    color:candidate.kind==='dark corridor'?'#e69f66':'#ffb649',
+    color:'#f3bd65',
     weight:4.7,dashArray:'5 7',opacity:.9,interactive:true});
    l.bindPopup(()=>aerialPopup(candidate),{maxWidth:275});
    l.on('click',e=>L.DomEvent.stopPropagation(e));
@@ -833,9 +836,14 @@ async function scanAerial(){
   }
   st.aerialOn=candidates.length>0;
   $('aerialBtn').classList.toggle('active',st.aerialOn);
+  const stats=candidates.stats||{};
   $('aerialStatus').textContent=candidates.length?
-   candidates.length+' LOW-confidence features in aerial imagery. Dashed orange may indicate narrow tracks, drainage, or image artifacts. Click to inspect and review.':
-   'No obvious narrow lines detected here. Tiny dirt trails beneath trees may remain invisible; trace a visible route manually.';
+   candidates.length+' possible narrow trail corridors across '+(stats.scanned||1)+
+    ' inspected aerial patches. All are unverified; click to review. '+
+    (stats.clipped?'Very wide map view: only the central 1.35 km was inspected. Zoom in or pan to scan farther trails.':''):
+   'No convincing narrow trails found in these '+(stats.scanned||1)+
+    ' aerial patches. Trees, shadows and low imagery resolution can hide real paths. '+ 
+    (stats.clipped?'Zoom in or pan; only the center of this wide view was inspected.':'');
   message(candidates.length?candidates.length+' possible image lines shown; verify before use.':
    'No aerial line suggestions here. You can trace a missing trail manually.',6500);
  }catch(err){
