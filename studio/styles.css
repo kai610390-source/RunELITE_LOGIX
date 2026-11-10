@@ -34,3 +34,29 @@
 .trail-review .muted{font-size:10px;color:#849c8d}
 #gravelStatus,#aerialStatus{line-height:1.6}
 #traceTrailBtn{background:#fffbea;border-color:#e8d79c;color:#917233}
+
+/* Surface Lab V4 — connected soft routes and close-up NAIP review */
+.strict-surface-panel{background:#ecf7ed;border:1px solid #cfe6d1;padding:12px 11px;border-radius:11px;margin:12px 0}
+.strict-toggle{margin:0 0 11px;border-top:0;padding:0}
+.strict-toggle b{color:#205b38}
+.strict-toggle small{max-width:215px}
+.strict-type-row{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:5px;margin-bottom:8px}
+.strict-type-row button{background:white;border:1px solid #cfe2d2;border-radius:7px;padding:8px 2px;font-size:9px;font-weight:790;color:#64816c}
+.strict-type-row button.active{background:#286c48;border-color:#286c48;color:#fff}
+.strict-surface-panel .hint{margin:5px 1px 0}
+.trainer-box{border:1px solid #cadccb;background:white;border-radius:11px;padding:12px;margin-top:13px;box-shadow:0 6px 22px #18492a14}
+.trainer-box img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#dae5d6;border-radius:9px}
+.trainer-context{font-size:10px;font-weight:680;color:#4a795b;line-height:1.5;margin:9px 0}
+.trainer-prediction{background:#ebf5ed;color:#456d53;font-size:10px;font-weight:750;line-height:1.5;padding:9px;border-radius:7px;margin:10px 0}
+.trainer-label-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.trainer-label-grid button{padding:10px 2px;background:#fff;border:1px solid #cfe2d0;border-radius:8px;font-size:10px;font-weight:800;color:#426c50}
+.trainer-label-grid button:hover{background:#e8f8eb}
+.trainer-label-grid button[data-training-label=gravel]{border-color:#e8c38e;color:#8f633a}
+.trainer-label-grid button[data-training-label=dirt]{border-color:#c9a58a;color:#956449}
+.trainer-label-grid button[data-training-label=grass]{border-color:#9bd8a8;color:#3c814a}
+.trainer-label-grid button[data-training-label=paved]{border-color:#b9ccd1;color:#607b87}
+.trainer-label-grid button[data-training-label=unknown]{border-color:#d7d7d7;color:#747a75}
+.trainer-counts{font-size:10px;color:#648570;line-height:1.7;margin-top:10px;border:1px dashed #d2e2d0;border-radius:8px;padding:9px}
+.route-evidence{font-size:10px;color:#4e8062;background:#edf7eb;padding:9px;border-radius:8px;margin-top:8px;line-height:1.5}
+.route-evidence.warning{background:#fbf5df;color:#886d39}
+.trail-review .vision-review-button{background:#e3f4e8;color:#2d704a;border:1px solid #c5e2c9}
