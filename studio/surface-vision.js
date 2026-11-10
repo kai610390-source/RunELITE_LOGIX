@@ -184,7 +184,28 @@ async function fromFile(file){
    source:'user-owned image',lat:null,lon:null,patchMeters:null};
  }finally{URL.revokeObjectURL(url);}
 }
+function exportTraining(){
+ // Only numerical features and human labels are exported, not aerial imagery.
+ return {format:'SurfaceStride-NAIP-Features',version:1,created:new Date().toISOString(),
+  examples:examples.map(x=>({label:x.label,vector:x.vector,source:x.source||'unknown'}))};
+}
+function importTraining(payload){
+ if(!payload||payload.format!=='SurfaceStride-NAIP-Features'||!Array.isArray(payload.examples))
+  throw Error('This is not a valid SurfaceStride training dataset.');
+ if(payload.examples.length>1000)throw Error('Dataset exceeds the 1,000-example import limit.');
+ const cleaned=[];
+ for(const x of payload.examples){
+  if(!LABELS.includes(x.label)||!Array.isArray(x.vector)||x.vector.length!==24||
+     !x.vector.every(v=>Number.isFinite(v)&&v>=0&&v<=2))continue;
+  cleaned.push({label:x.label,vector:x.vector.slice(),source:x.source||'imported',
+   time:Date.now()});
+ }
+ if(!cleaned.length)throw Error('No valid labeled image features found.');
+ const next=examples.concat(cleaned).slice(-350);
+ if(!store(TRAIN,next))throw Error('Browser storage unavailable.');
+ examples=next;return count();
+}
 window.SurfaceStrideVision={capture,fromFile,features,predict,count,addExample,review,getReviews,
- reviewedCount,removeReview,surfaceKey,getConnectors,saveConnector,
+ reviewedCount,removeReview,surfaceKey,getConnectors,saveConnector,exportTraining,importTraining,
  _test:{merc,materialLabels:LABELS.slice(),clearMemory(){examples=[];reviews={};}}};
 })();
