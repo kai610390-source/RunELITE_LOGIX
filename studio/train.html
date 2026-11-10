@@ -117,7 +117,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
  </div>
  <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. It does not automatically verify a surface or add a trail to strict routing. Images aren't saved with training labels.</p>
 </main>
-<script src="./surface-vision.js?v=random-trainer-v6"></script>
+<script src="./surface-vision.js?v=random-trainer-v6a"></script>
 <script>
 (function(){
 'use strict';
@@ -210,6 +210,8 @@ function label(label){
  try{
   V.addExample(state.sample.vector,label,{source:state.sample.source,lat:state.sample.lat,lon:state.sample.lon});
   updateCounts();
+  state.sample=null;
+  setLabelsDisabled(true);
   message('Saved: '+(label==='unknown'?'Not sure / other':label)+'. Loading another random Austin surface…','ok');
   clearTimeout(sleepTimer);
   sleepTimer=setTimeout(()=>loadRandom(false),450);
