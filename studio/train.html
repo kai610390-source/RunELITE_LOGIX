@@ -3,219 +3,274 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#13271e">
-<meta name="description" content="Train SurfaceStride's local gravel dirt grass and pavement classifier using public aerial imagery or your own images.">
-<title>SurfaceStride — Train Surfaces</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<meta name="theme-color" content="#11251b">
+<meta name="description" content="Train SurfaceStride surface recognition by labeling randomly selected Austin-area aerial images.">
+<title>SurfaceStride — Random Surface Training</title>
 <style>
-:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#244533;background:#f4f7f1}
-*{box-sizing:border-box}body{margin:0}.header{background:#fff;border-bottom:1px solid #dce8db;display:flex;align-items:center;justify-content:space-between;padding:15px 24px;gap:15px}.brand{color:#153f2b;font-size:20px;font-weight:850;letter-spacing:-1px}.brand em{font-style:normal;color:#53a977}.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:#7c9a84;margin-top:4px}.header a{color:#216344;text-decoration:none;font-size:12px;font-weight:760}
-.main{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);max-width:1470px;margin:0 auto;gap:20px;padding:22px}
-.card{background:white;border:1px solid #e1e9e0;border-radius:15px;overflow:hidden;box-shadow:0 4px 18px #1238210b}.card-head{padding:18px 21px 12px}.eyebrow{font-size:10px;font-weight:850;letter-spacing:1.8px;color:#529273;text-transform:uppercase}.card h1,.card h2{font-family:Georgia,serif;font-weight:500;letter-spacing:-.5px;color:#244e35;margin:8px 0}.card h1{font-size:29px}.card h2{font-size:23px}.desc{font-size:12px;color:#779081;line-height:1.55;margin:10px 0}.map{height:455px;background:#384838}.maphelp{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 21px;border-top:1px solid #e4ede5;color:#62816a;font-size:11px}.coord{font-variant-numeric:tabular-nums;color:#255e3f;font-weight:800}.controls{padding:17px 21px;display:flex;flex-wrap:wrap;gap:9px;border-top:1px solid #e4ede5}
-button,.filelabel{font:inherit;cursor:pointer;border-radius:9px;padding:11px 13px;font-weight:750;font-size:12px;border:1px solid #bedbc3;background:#edf8ee;color:#215d3f}
-button:hover,.filelabel:hover{background:#d8efdd}button:focus-visible,input:focus-visible{outline:3px solid #67c18b;outline-offset:2px}
-.primary{color:white;background:#1d6443;border-color:#1d6443}.primary:hover{background:#105134}.secondary{background:#fff;color:#426950}.muted{color:#879d8b}
-.status{padding:13px 18px;border-radius:10px;background:#edf6ee;border:1px solid #d9e9dc;margin:12px 20px;color:#3d7551;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
-.status.error{background:#fff3e9;border-color:#e9d1bc;color:#87533c}.status.loading{background:#ebf4fc;color:#37678b}.status.ok{background:#e5f7e9;color:#267046}
-.viewer{padding:18px 21px}.frame{aspect-ratio:1/1;border-radius:12px;border:1px solid #cdddce;background:linear-gradient(135deg,#e0ebdd,#d0dfd1);display:grid;place-items:center;overflow:hidden;position:relative}.frame img{width:100%;height:100%;object-fit:cover;display:none}.frame.has-image img{display:block}.frame.has-image .placeholder{display:none}
-.placeholder{padding:22px;text-align:center;color:#668875;font-size:13px;line-height:1.55}.placeholder svg{display:block;width:54px;height:54px;margin:0 auto 14px;opacity:.8}
-.prediction{margin:12px 0;padding:11px;background:#eff6ef;border:1px solid #deebde;border-radius:9px;color:#3e7251;font-size:12px;line-height:1.5}
-.labels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.labels button{min-height:52px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px}
-.dot{width:12px;height:12px;border-radius:50%}.counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:15px 20px}.count{border:1px solid #e4eee3;border-radius:10px;padding:10px 5px;text-align:center;background:#f7fbf6}.count b{font-size:19px;display:block;color:#2d7547}.count span{font-size:9px;color:#8b9e8f}.totals{padding:0 21px 15px;color:#6c8672;font-size:11px;line-height:1.6}
-.actions{padding:14px 21px 19px;border-top:1px solid #e5ede5;display:flex;flex-wrap:wrap;gap:8px}.actions button{background:#fff;font-size:11px}
-.instructions{max-width:1470px;margin:0 auto;padding:0 24px 30px;font-size:12px;line-height:1.7;color:#718d78}.instructions strong{color:#365e42}
-.fileinput{display:none}
-@media(max-width:830px){.main{grid-template-columns:1fr;padding:12px;gap:12px}.map{height:315px}.header{padding:13px}.card h1{font-size:24px}.counts{gap:3px}.count{padding:8px 2px}.count span{font-size:8px}.labels{grid-template-columns:repeat(2,1fr)}.controls{padding:13px}.instructions{padding:12px}}
+:root{color-scheme:light;--dark:#132e21;--forest:#235f41;--mint:#d9f2dc;--bg:#f4f7f1;--text:#274b35;--muted:#7e9483;--border:#e0eae1;--white:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{margin:0;color:var(--text)}
+button{font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:wait}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #70cb8d;outline-offset:3px}[hidden]{display:none!important}
+header{height:77px;padding:0 30px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:15px}
+.logo{font-size:21px;letter-spacing:-1px;font-weight:850;color:#1c5336}.logo span{color:#69bc85}.logo small{display:block;font-size:10px;letter-spacing:1.9px;color:#739980;margin-top:5px;font-weight:840}
+a.back{font-size:12px;font-weight:750;color:#34704d;text-decoration:none}
+.container{max-width:1160px;margin:25px auto;padding:0 22px}
+.topline{display:flex;justify-content:space-between;align-items:end;gap:15px;margin:0 0 21px}.eyebrow{font-size:10px;letter-spacing:2px;font-weight:850;color:#71a283;text-transform:uppercase}
+h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;font-weight:500;letter-spacing:-1.2px;line-height:1.1}h1 em{font-style:normal;color:#61a578}
+.intro{font-size:13px;color:#819585;line-height:1.5;margin:8px 0}.counter{background:#e3f2e6;border:1px solid #cee8d4;border-radius:11px;padding:14px 17px;text-align:right;white-space:nowrap}.counter b{display:block;color:#276845;font-size:25px;line-height:1}.counter span{font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:1px;color:#78a085}
+.layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(330px,.8fr);align-items:start;gap:19px}
+.card{background:#fff;border:1px solid #e1e9df;border-radius:17px;overflow:hidden;box-shadow:0 8px 30px #1236200b}
+.card-head{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #eaf0e7}
+.card-head strong{font-size:13px}.chip{font-size:9px;font-weight:800;color:#387450;letter-spacing:.9px;background:#e9f5e8;padding:7px 9px;border-radius:7px}
+.image-frame{position:relative;aspect-ratio:1/1;background:#d1e0cc;overflow:hidden;display:grid;place-items:center}
+.image-frame img{display:none;width:100%;height:100%;object-fit:cover;image-rendering:auto}
+.image-frame.has-image img{display:block}
+.placeholder{text-align:center;padding:20px 35px;color:#5e7e65;font-size:13px;line-height:1.7}
+.image-frame.has-image .placeholder{display:none}
+.spinner{width:35px;height:35px;border-radius:100%;border:4px solid #b7d6c0;border-top-color:#27754b;display:block;margin:0 auto 15px;animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.image-note{position:absolute;left:13px;bottom:13px;background:#10281ecc;color:#fff;border-radius:9px;font-size:10px;font-weight:710;letter-spacing:.2px;padding:10px 12px;backdrop-filter:blur(6px)}
+.image-frame:not(.has-image) .image-note{display:none}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 16px;flex-wrap:wrap;background:#fcfdfb}
+.toolbar-group{display:flex;gap:8px;align-items:center}
+.btn{border:1px solid #c9ddcc;background:#edf7ed;color:#2b6849;border-radius:9px;padding:10px 13px;font-size:11px;font-weight:830;min-height:39px}
+.btn.primary{background:#206944;border-color:#206944;color:#fff}.btn.primary:hover{background:#135234}
+.btn:hover{background:#deefe2}.btn.secondary{background:#fff}
+.btn.small{padding:9px 11px;min-width:38px}.btn.selected{background:#206944;color:#fff;border-color:#206944}
+.panel-body{padding:18px 21px 20px}
+.bigquestion{margin:1px 0 10px;font-family:Georgia,serif;font-size:29px;font-weight:500;color:#27553b}
+.help{font-size:12px;line-height:1.7;color:#8ba08f;margin:0 0 17px}
+.label-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.label-buttons button{background:#fff;display:flex;align-items:center;gap:11px;border:1px solid #d9e5d9;min-height:66px;padding:10px 13px;text-align:left;border-radius:11px;color:#3d6550;font-size:14px;font-weight:830}
+.label-buttons button:hover:not(:disabled){background:#f1f8f0;border-color:#a6cdb3;transform:translateY(-1px)}
+.label-buttons button[data-label="unknown"]{grid-column:1/-1;min-height:50px;justify-content:center;color:#778b7c;font-size:12px}
+.swatch{height:18px;width:18px;border-radius:6px;display:inline-block;flex:none}
+.progress{padding:14px;margin-top:20px;background:#f4f9f3;border:1px solid #e5eee2;border-radius:11px}
+.progress-title{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#60836a;font-weight:750;margin-bottom:10px}
+.count-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.count-box{text-align:center;border-radius:8px;background:#fff;border:1px solid #e0e9df;padding:9px 1px}
+.count-box b{display:block;color:#356d4c;font-size:18px}.count-box span{display:block;font-size:9px;color:#9cafa0;margin-top:4px}
+.notice{padding:11px 13px;border:1px solid #d3e5d5;border-radius:9px;background:#ecf6eb;color:#38714d;font-size:11px;line-height:1.6;margin:13px 0}
+.notice.error{color:#955336;background:#fff2e9;border-color:#f0d7be}
+.notice.loading{color:#2f6890;background:#edf6fd;border-color:#d9e9fa}
+.actions{border-top:1px solid #edf1ea;padding:13px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.upload{font-size:11px;color:#507f60}.footnote{margin:18px 2px 32px;color:#869a87;font-size:11px;line-height:1.7}.footnote b{color:#568068}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.container{max-width:710px}.topline{align-items:start}h1{font-size:30px}}
+@media(max-width:460px){header{height:69px;padding:0 15px}.logo{font-size:18px}.container{padding:0 10px;margin:20px auto}.counter{padding:10px}.counter b{font-size:20px}.topline{padding:0 4px}.image-frame{aspect-ratio:1/1}.card-head{padding:12px 14px}.toolbar{padding:10px}.panel-body{padding:16px}.label-buttons button{font-size:12px;min-height:60px;padding:9px}.bigquestion{font-size:25px}}
 </style>
 </head>
 <body>
-<header class="header"><div class="brand">surface<em>stride.</em><small>Surface Trainer · V5</small></div><a href="./?v=surface-lab-v5">← Back to Route Studio</a></header>
-<main class="main">
-<section class="card">
- <div class="card-head"><span class="eyebrow">01 / Choose a surface</span><h1>Pick a real surface to label.</h1><p class="desc">Click the satellite map to choose an exact location. Then load a close-up from public USGS aerial imagery, or add a photo you have the rights to use.</p></div>
- <div id="trainerMap" class="map" aria-label="Austin satellite imagery map; click to choose a surface"></div>
- <div class="maphelp"><span>Click the map to move the sample pin. Zoom in to identify the path.</span><span id="sampleCoordinates" class="coord">Austin, TX</span></div>
- <div class="controls">
-   <button id="loadNAIP" class="primary">◎ Load aerial close-up</button>
-   <button id="randomSample">↻ Sample near the map center</button>
-   <button id="uploadImage" class="secondary">↑ Use my own image</button>
-   <input class="fileinput" type="file" id="imageFile" accept="image/png,image/jpeg,image/webp">
+<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V6</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
+<main class="container">
+ <div class="topline">
+  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">A random zoomed-in aerial image from the Austin area appears automatically. Just tell it what surface you see.</p></div>
+  <div class="counter"><b id="totalCount">0</b><span>Labels collected</span></div>
  </div>
- <div class="status" role="status" aria-live="polite" id="status">Ready. Select a location, then choose “Load aerial close-up” or “Use my own image.”</div>
-</section>
-<section class="card">
- <div class="card-head"><span class="eyebrow">02 / Label & train</span><h2>What surface is this?</h2><p class="desc">Choose the actual surface, not the model's guess. Each answer trains the classifier on this browser.</p></div>
- <div class="viewer"><div class="frame" id="imageFrame"><div class="placeholder"><svg viewBox="0 0 48 48" fill="none" stroke="#548f6b" stroke-width="2"><rect x="5" y="7" width="38" height="34" rx="6"/><path d="m9 32 11-11 7 6 5-7 7 12"/></svg>Load an image to begin. Your labeling controls are right here.</div><img id="samplePreview" alt="Close-up image to classify"></div>
- <div class="prediction" id="prediction">No image loaded yet. The model needs at least 8 labeled samples from two surface types before it can suggest a class.</div>
- <div class="labels">
-   <button data-label="gravel"><i class="dot" style="background:#d7ae73"></i>Gravel</button>
-   <button data-label="dirt"><i class="dot" style="background:#a87853"></i>Dirt</button>
-   <button data-label="grass"><i class="dot" style="background:#62bc78"></i>Grass</button>
-   <button data-label="paved"><i class="dot" style="background:#9eb3b7"></i>Paved road</button>
-   <button data-label="unknown"><i class="dot" style="background:#a5ada6"></i>Not sure</button>
+ <div class="layout">
+  <section class="card">
+   <div class="card-head"><strong id="sampleTitle">Finding a random Austin image…</strong><span class="chip" id="locationLabel">AUSTIN, TX</span></div>
+   <div id="imageFrame" class="image-frame">
+    <div id="placeholder" class="placeholder"><span class="spinner"></span>Finding your first random close-up…</div>
+    <img id="sampleImage" alt="Random zoomed-in public aerial image near Austin; choose its actual surface below">
+    <div class="image-note" id="scaleNote">Approx. 32 meters across · Enlarged aerial imagery</div>
+   </div>
+   <div class="toolbar">
+    <div class="toolbar-group">
+     <button id="skipButton" class="btn primary" type="button">↻ Skip / next image</button>
+     <button id="retryButton" class="btn secondary" type="button" hidden>Retry image</button>
+    </div>
+    <div class="toolbar-group"><span style="font-size:10px;color:#8ba28e">Zoom</span><button id="zoomOut" type="button" class="btn small" title="Wider area">−</button><button id="zoomIn" type="button" class="btn small" title="Closer area">+</button></div>
+   </div>
+  </section>
+  <section class="card">
+   <div class="card-head"><strong>Classify the image</strong><span class="chip">YOUR ANSWER TRAINS IT</span></div>
+   <div class="panel-body">
+    <h2 class="bigquestion">What's the surface?</h2>
+    <p class="help">Choose a surface below. The next random close-up loads automatically. If it's a roof, water, or impossible to tell, choose Not sure.</p>
+    <div class="label-buttons">
+     <button type="button" data-label="gravel"><span class="swatch" style="background:#d9b480"></span>Gravel</button>
+     <button type="button" data-label="dirt"><span class="swatch" style="background:#b38460"></span>Dirt</button>
+     <button type="button" data-label="grass"><span class="swatch" style="background:#65bd75"></span>Grass</button>
+     <button type="button" data-label="paved"><span class="swatch" style="background:#a5b4b6"></span>Paved road</button>
+     <button type="button" data-label="unknown"><span class="swatch" style="background:#c7d2c7"></span>Not sure / other</button>
+    </div>
+    <div id="status" class="notice loading" role="status" aria-live="polite">Loading your first random surface…</div>
+    <div class="progress">
+     <div class="progress-title"><span>Your training examples</span><span id="reviewCount">Saved locally</span></div>
+     <div class="count-grid">
+      <div class="count-box"><b id="countGravel">0</b><span>Gravel</span></div>
+      <div class="count-box"><b id="countDirt">0</b><span>Dirt</span></div>
+      <div class="count-box"><b id="countGrass">0</b><span>Grass</span></div>
+      <div class="count-box"><b id="countPaved">0</b><span>Paved</span></div>
+      <div class="count-box"><b id="countUnknown">0</b><span>Other</span></div>
+     </div>
+    </div>
+   </div>
+   <div class="actions">
+    <button id="uploadButton" class="btn secondary" type="button">↑ Use my own photo</button>
+    <input id="uploadFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+    <button id="undoButton" class="btn secondary" type="button">Undo label</button>
+    <button id="exportButton" class="btn secondary" type="button">Export training data</button>
+    <button id="importButton" class="btn secondary" type="button">Import</button>
+    <input id="importFile" type="file" accept=".json,application/json" hidden>
+   </div>
+  </section>
  </div>
- <p class="desc" id="labelHelp" style="margin:12px 0 0">Load a sample first, then tap a label. You can continue labeling without reloading the Studio.</p>
- </div>
- <div class="counts">
-   <div class="count"><b id="countGravel">0</b><span>Gravel</span></div><div class="count"><b id="countDirt">0</b><span>Dirt</span></div><div class="count"><b id="countGrass">0</b><span>Grass</span></div><div class="count"><b id="countPaved">0</b><span>Paved</span></div><div class="count"><b id="countUnknown">0</b><span>Unknown</span></div>
- </div>
- <div id="countMessage" class="totals">0 examples saved to this browser.</div>
- <div class="actions">
-   <button id="nextSample" class="primary">Next random aerial sample</button>
-   <button id="exportExamples">↓ Export labels</button>
-   <button id="importExamples">↑ Import labels</button>
-   <input class="fileinput" type="file" id="datasetFile" accept=".json,application/json">
-   <button id="undoLabel" title="Remove the most recent labeled example">Undo last label</button>
- </div>
-</section>
+ <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. It does not automatically verify a surface or add a trail to strict routing. Images aren't saved with training labels.</p>
 </main>
-<p class="instructions"><strong>About the training:</strong> This is a small local color/texture classifier, not an established computer-vision model. It cannot certify a trail's surface or pedestrian access from aerial imagery. Label a diverse set of verified surfaces; train data and reviewed sections stay in your browser unless you export the numerical features. USGS aerial photos may be older than current conditions. Google Maps imagery is not collected or used for training.</p>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="./surface-vision.js?v=surface-trainer-v5c"></script>
+<script src="./surface-vision.js?v=random-trainer-v6"></script>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const labels=['gravel','dirt','grass','paved','unknown'];
-const parameters=new URLSearchParams(location.search);
-const pLat=Number(parameters.get('lat')),pLon=Number(parameters.get('lon'));
-const useQuery=parameters.has('lat')&&parameters.has('lon')&&Number.isFinite(pLat)&&Number.isFinite(pLon)&&
- Math.abs(pLat)<85&&Math.abs(pLon)<=180;
-const state={lat:useQuery?pLat:30.285,lon:useQuery?pLon:-97.735,
- sample:null,loading:false,map:null,pin:null};
-function report(message,kind=''){
- const el=$('status');el.className='status '+kind;el.textContent=message;
+const CATEGORIES=['gravel','dirt','grass','paved','unknown'];
+const ZONES=[
+ {name:'Zilker and Barton Creek',lat:30.2675,lon:-97.7756,r:480},
+ {name:'Lady Bird Lake',lat:30.2605,lon:-97.7560,r:550},
+ {name:'Shoal Creek',lat:30.3100,lon:-97.7511,r:650},
+ {name:'Walnut Creek',lat:30.3994,lon:-97.6852,r:900},
+ {name:'Bull Creek',lat:30.3762,lon:-97.7810,r:550},
+ {name:'North Austin',lat:30.3510,lon:-97.7210,r:750},
+ {name:'East Austin',lat:30.2745,lon:-97.6994,r:670},
+ {name:'South Austin',lat:30.2181,lon:-97.7545,r:780},
+ {name:'McKinney Falls area',lat:30.2204,lon:-97.7107,r:700},
+ {name:'Onion Creek area',lat:30.1910,lon:-97.7420,r:650},
+ {name:'Central Austin',lat:30.2950,lon:-97.7350,r:850},
+ {name:'West Austin',lat:30.3050,lon:-97.8150,r:590},
+ {name:'Northeast Austin',lat:30.3275,lon:-97.6738,r:700},
+ {name:'Southwest Austin',lat:30.2292,lon:-97.8024,r:820}
+];
+const state={busy:false,sample:null,span:32,sampleNo:0,pendingNext:null,version:0,zoneIndex:-1,lastCoords:null};
+let sleepTimer=null;
+function message(value,kind=''){
+ const s=$('status');s.textContent=value;s.className='notice '+kind;
 }
-function refresh(){
+function setLabelsDisabled(flag){
+ for(const button of document.querySelectorAll('[data-label]'))button.disabled=flag;
+}
+function updateCounts(){
+ const V=window.SurfaceStrideVision;if(!V){message('Surface model unavailable. Refresh the page.','error');return;}
+ const stats=V.count(),total=Object.values(stats).reduce((a,b)=>a+b,0);
+ $('totalCount').textContent=total;
+ for(const label of CATEGORIES)$('count'+label[0].toUpperCase()+label.slice(1)).textContent=stats[label]||0;
+ $('reviewCount').textContent=total<8?'Start with 8+ labels':total+' saved locally';
+}
+function randomLocation(){
+ // Sampling different neighborhoods rather than repeatedly showing the same location.
+ let index=Math.floor(Math.random()*ZONES.length);
+ if(index===state.zoneIndex)index=(index+1+Math.floor(Math.random()*(ZONES.length-1)))%ZONES.length;
+ state.zoneIndex=index;
+ const zone=ZONES[index],angle=Math.random()*2*Math.PI,radius=zone.r*Math.sqrt(Math.random());
+ const lat=zone.lat+Math.cos(angle)*radius/111195;
+ const lon=zone.lon+Math.sin(angle)*radius/(111195*Math.max(.15,Math.cos(lat*Math.PI/180)));
+ return {lat,lon,zone:zone.name};
+}
+function showLoading(){
+ $('sampleTitle').textContent='Finding random Austin surface #'+(state.sampleNo+1)+'…';
+ $('placeholder').innerHTML='<span class="spinner"></span>Loading a zoomed-in aerial image from Austin…';
+ $('imageFrame').classList.remove('has-image');
+ $('retryButton').hidden=true;
+ message('Loading an Austin-area surface. You can choose Gravel, Dirt, Grass, Paved or Not sure once it appears.','loading');
+}
+async function loadRandom(reuse=false){
  const V=window.SurfaceStrideVision;
- if(!V){report('Training library failed to load. Refresh or try another browser.','error');return;}
- const c=V.count();
- for(const label of labels)$('count'+label[0].toUpperCase()+label.slice(1)).textContent=c[label]||0;
- const total=Object.values(c).reduce((a,b)=>a+b,0);
- $('countMessage').textContent=total+' examples saved locally. '+V.reviewedCount()+
-  ' reviewed map sections. '+(total<8?'Start with 8+ examples in two or more categories.':
-  'Continue collecting varied examples; predictions are not validated.');
-}
-function pinTo(lat,lon,move=false){
- state.lat=lat;state.lon=lon;
- $('sampleCoordinates').textContent=lat.toFixed(5)+', '+lon.toFixed(5);
- if(state.pin)state.pin.setLatLng([lat,lon]);
- if(move&&state.map)state.map.panTo([lat,lon]);
-}
-function setupMap(){
- if(typeof L==='undefined'){report('Satellite map library unavailable. You can still train using your own images.','error');return;}
- const map=L.map('trainerMap',{zoomControl:true}).setView([state.lat,state.lon],16);
- state.map=map;
- L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
- {maxZoom:19,attribution:'Imagery © Esri & providers'}).addTo(map);
- map.createPane('surfaceLabels');map.getPane('surfaceLabels').style.zIndex=350;map.getPane('surfaceLabels').style.pointerEvents='none';
- L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
- {maxZoom:19,pane:'surfaceLabels',opacity:.7}).addTo(map);
- state.pin=L.circleMarker([state.lat,state.lon],{radius:8,color:'#fff',weight:3,
-  fillColor:'#227347',fillOpacity:1}).addTo(map);
- map.on('click',e=>pinTo(e.latlng.lat,e.latlng.lng));
- window.addEventListener('resize',()=>map.invalidateSize());
- pinTo(state.lat,state.lon);
-}
-function display(sample){
- state.sample=sample;
- $('samplePreview').src=sample.preview;
- $('imageFrame').classList.add('has-image');
- const V=window.SurfaceStrideVision,p=V.predict(sample.vector);
- $('prediction').textContent=p.trained?
-  'Model suggestion: '+p.label+' ('+Math.round(p.confidence*100)+
-  '% neighbor vote agreement). UNVERIFIED, check the image yourself.':
-  'Model not trained yet. '+p.reason;
- $('labelHelp').textContent=(sample.source==='NAIP'?'Public aerial close-up':'Your uploaded image')+
-  ' · choose its ACTUAL surface below.';
- report('Image loaded successfully. Choose Gravel, Dirt, Grass, Paved road or Not sure.','ok');
-}
-async function loadNAIP(random=false){
- if(state.loading)return;
- const V=window.SurfaceStrideVision;
- if(!V){report('Training library unavailable. Try refreshing the page.','error');return;}
- const center=state.map?.getCenter();
- let lat=random&&center?center.lat:state.lat,lon=random&&center?center.lng:state.lon;
- if(random&&center){
-  const angle=Math.random()*Math.PI*2,meters=50+Math.random()*320;
-  lat=center.lat+meters*Math.cos(angle)/111195;
-  lon=center.lng+meters*Math.sin(angle)/(111195*Math.max(.15,Math.cos(center.lat*Math.PI/180)));
-  pinTo(lat,lon,true);
- }
- state.sample=null;$('imageFrame').classList.remove('has-image');
- state.loading=true;$('loadNAIP').disabled=true;$('randomSample').disabled=true;$('nextSample').disabled=true;
- report('Loading a public aerial close-up and analyzing image pixels…','loading');
- try{display(await V.capture(lat,lon,{spanMeters:32,px:384,timeout:16000}));}
- catch(err){
-  report('Aerial close-up failed: '+(err?.message||err)+
-   '. You can still train: click “Use my own image” and select a JPG/PNG photo.','error');
- }finally{
-  state.loading=false;$('loadNAIP').disabled=false;$('randomSample').disabled=false;$('nextSample').disabled=false;
- }
-}
-async function upload(file){
- if(!file)return;
- if(!window.SurfaceStrideVision){report('Training library unavailable.','error');return;}
- state.sample=null;$('imageFrame').classList.remove('has-image');
- report('Loading your image…','loading');
- try{display(await window.SurfaceStrideVision.fromFile(file));}
- catch(err){report('Image upload failed: '+(err?.message||err),'error');}
- finally{$('imageFile').value='';}
-}
-function label(value){
- if(!state.sample){report('Choose “Load aerial close-up” or “Use my own image” before labeling.','error');return;}
+ if(!V){message('Surface model script did not load. Please refresh.','error');return;}
+ if(state.busy)return;
+ clearTimeout(sleepTimer);sleepTimer=null;
+ const position=reuse&&state.lastCoords?state.lastCoords:randomLocation();
+ state.lastCoords=position;state.sample=null;state.busy=true;
+ const version=++state.version;
+ $('skipButton').disabled=true;setLabelsDisabled(true);
+ showLoading();
  try{
-  const V=window.SurfaceStrideVision;
-  V.addExample(state.sample.vector,value,{source:state.sample.source,lat:state.sample.lat,lon:state.sample.lon});
-  refresh();
-  report('Saved as '+value+'. Your training example is now stored in this browser. Choose the next sample when ready.','ok');
-  const p=V.predict(state.sample.vector);
-  $('prediction').textContent=p.trained?'Updated model predicts '+p.label+' (unverified, '+Math.round(p.confidence*100)+'% vote agreement).':
-   'Saved example. '+p.reason;
- }catch(err){report('Could not save this label: '+(err?.message||err),'error');}
+  const sample=await V.capture(position.lat,position.lon,{spanMeters:state.span,px:384,timeout:13000});
+  if(version!==state.version)return;
+  state.sample=sample;state.sampleNo++;
+  $('sampleImage').src=sample.preview;
+  $('imageFrame').classList.add('has-image');
+  $('sampleTitle').textContent='Random surface #'+state.sampleNo;
+  $('locationLabel').textContent=position.zone.toUpperCase();
+  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m across · public aerial imagery';
+  message('Image ready. Choose the surface type; the next random image will load automatically.','');
+ }catch(err){
+  if(version!==state.version)return;
+  $('sampleTitle').textContent='Could not load that aerial image';
+  $('locationLabel').textContent='TRY AGAIN';
+  $('placeholder').textContent='Aerial image unavailable. Try Next image, or upload a photo you can use.';
+  $('retryButton').hidden=false;
+  message('Random aerial image failed: '+(err?.message||err)+
+   '. Try Skip / next image, or Use my own photo.','error');
+ }finally{
+  if(version===state.version){state.busy=false;$('skipButton').disabled=false;setLabelsDisabled(false);}
+ }
 }
-function download(content,name){
- const blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob);
- const link=document.createElement('a');link.href=url;link.download=name;
- document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+function label(label){
+ if(state.busy){message('The next image is loading. Please choose a label after it appears.','loading');return;}
+ if(!state.sample){message('No image loaded yet. Try Skip / next image or upload a photo.','error');return;}
+ const V=window.SurfaceStrideVision;
+ try{
+  V.addExample(state.sample.vector,label,{source:state.sample.source,lat:state.sample.lat,lon:state.sample.lon});
+  updateCounts();
+  message('Saved: '+(label==='unknown'?'Not sure / other':label)+'. Loading another random Austin surface…','ok');
+  clearTimeout(sleepTimer);
+  sleepTimer=setTimeout(()=>loadRandom(false),450);
+ }catch(err){message('Could not save label: '+(err?.message||err),'error');}
+}
+async function importPhoto(file){
+ if(!file)return;
+ if(state.busy){message('Wait until the current image finishes loading, then upload.','loading');return;}
+ clearTimeout(sleepTimer);state.busy=true;setLabelsDisabled(true);
+ try{
+  const sample=await window.SurfaceStrideVision.fromFile(file);
+  state.sample=sample;state.lastCoords=null;state.sampleNo++;
+  $('sampleTitle').textContent='Your uploaded image #'+state.sampleNo;
+  $('locationLabel').textContent='USER IMAGE';
+  $('sampleImage').src=sample.preview;
+  $('imageFrame').classList.add('has-image');
+  $('scaleNote').textContent='Your photo · crop centered';
+  message('Photo ready. Choose its surface type. After labeling, a random Austin image loads.','');
+ }catch(err){message('Unable to open your photo: '+(err?.message||err),'error');}
+ finally{state.busy=false;setLabelsDisabled(false);$('uploadFile').value='';}
+}
+function exportFile(data,name){
+ const blob=new Blob([data],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function wire(){
- $('loadNAIP').addEventListener('click',()=>loadNAIP(false));
- $('randomSample').addEventListener('click',()=>loadNAIP(true));
- $('nextSample').addEventListener('click',()=>loadNAIP(true));
- $('uploadImage').addEventListener('click',()=>$('imageFile').click());
- $('imageFile').addEventListener('change',e=>upload(e.target.files?.[0]));
+ $('skipButton').addEventListener('click',()=>loadRandom(false));
+ $('retryButton').addEventListener('click',()=>loadRandom(true));
+ $('zoomIn').addEventListener('click',()=>{state.span=Math.max(20,Math.round(state.span*.66));loadRandom(true);});
+ $('zoomOut').addEventListener('click',()=>{state.span=Math.min(80,Math.round(state.span*1.5));loadRandom(true);});
  document.querySelectorAll('[data-label]').forEach(b=>b.addEventListener('click',()=>label(b.dataset.label)));
- $('exportExamples').addEventListener('click',()=>{
-  if(!window.SurfaceStrideVision){report('Training library unavailable.','error');return;}
-  download(JSON.stringify(window.SurfaceStrideVision.exportTraining(),null,2),'surfacestride-training-features.json');
-  report('Training labels exported (numerical features only, no images).','ok');
+ $('uploadButton').addEventListener('click',()=>$('uploadFile').click());
+ $('uploadFile').addEventListener('change',e=>importPhoto(e.target.files?.[0]));
+ $('undoButton').addEventListener('click',()=>{
+  try{const did=window.SurfaceStrideVision.removeLastExample();
+   updateCounts();message(did?'Last label undone.':'No saved labels to undo.',did?'ok':'');
+  }catch(err){message('Could not undo label: '+(err?.message||err),'error');}
  });
- $('importExamples').addEventListener('click',()=>$('datasetFile').click());
- $('datasetFile').addEventListener('change',async e=>{
-  try{
-   const file=e.target.files?.[0];if(!file)return;
-   if(file.size>3000000)throw Error('Dataset too large');
+ $('exportButton').addEventListener('click',()=>{
+  try{exportFile(JSON.stringify(window.SurfaceStrideVision.exportTraining(),null,2),'surfacestride-austin-training.json');
+   message('Labeled surface features exported (not images).','ok');
+  }catch(err){message('Export failed: '+(err?.message||err),'error');}
+ });
+ $('importButton').addEventListener('click',()=>$('importFile').click());
+ $('importFile').addEventListener('change',async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{if(file.size>3000000)throw Error('File exceeds 3 MB');
    window.SurfaceStrideVision.importTraining(JSON.parse(await file.text()));
-   refresh();report('Training dataset imported.','ok');
-  }catch(err){report('Could not import labels: '+(err?.message||err),'error');}
-  finally{$('datasetFile').value='';}
- });
- $('undoLabel').addEventListener('click',()=>{
-  const V=window.SurfaceStrideVision;
-  if(!V?.removeLastExample){report('Undo control is not available. Try refreshing.','error');return;}
-  try{const r=V.removeLastExample();refresh();report(r?'Last training label removed.':'No labels to undo.',r?'ok':'');}
-  catch(err){report(err?.message||String(err),'error');}
+   updateCounts();message('Training data imported successfully.','ok');
+  }catch(err){message('Import failed: '+(err?.message||err),'error');}
+  finally{$('importFile').value='';}
  });
 }
 function start(){
- wire();
- try{setupMap();}catch(err){
-  report('Satellite map could not start: '+(err?.message||err)+
-   '. You can still train by uploading an authorized image.','error');
- }
- refresh();
+ wire();updateCounts();
+ if(window.SurfaceStrideVision)loadRandom(false);
+ else message('Unable to start: surface training library failed to load. Refresh the page.','error');
 }
+window.SurfaceStrideRandomTrainer={_test:{randomLocation},_state:state};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 </script>
