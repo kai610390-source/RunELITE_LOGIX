@@ -37,7 +37,30 @@ function material(t,review,key){
  const tag=MATERIAL[(t.surface||'').trim().toLowerCase()];
  return tag?{type:tag,evidence:'osm'}:null;
 }
-function graphFromElements(elements,reviews={},preference='both',connectors=[]){
+// Missing OSM surface tags are common on small natural paths. Never infer
+// surface where the mapper explicitly tagged hard paving or access limits.
+const PAVED_TAGS=new Set(['paved','asphalt','concrete','concrete:plates','concrete:lanes','paving_stones','sett','cobblestone','metal','wood','rubber','artificial_turf']);
+const PRIVATE_FOOTWAYS=new Set(['sidewalk','crossing','traffic_island']);
+function likelyNatural(t){
+ if(!t||PAVED_TAGS.has((t.surface||'').toLowerCase()))return null;
+ if(t.surface&&t.surface!=='unknown'&&t.surface!=='unclassified')return null;
+ if(t.paved==='yes'||t.foot==='no'||t.access==='private')return null;
+ if(t.footway&&PRIVATE_FOOTWAYS.has(t.footway))return null;
+ // Strong unpaved indicators, even without an explicit surface tag.
+ if(['grade3','grade4','grade5'].includes(t.tracktype)&&t.highway==='track')
+  return {type:'dirt',evidence:'inferred',confidence:.84,reason:'track grade suggests natural ground'};
+ if(t.highway==='path'&&(
+   t.trail_visibility||t.sac_scale||t.mtb_scale||
+   t.informal==='yes'||t.path==='trail'||t.hiking==='yes'))
+  return {type:'dirt',evidence:'inferred',confidence:.76,reason:'mapped informal/hiking trail'};
+ if(t.highway==='path'&&!t.lit&&!t.bicycle&&!t.designation&&!t.footway)
+  return {type:'dirt',evidence:'inferred',confidence:.52,reason:'untagged mapped path'};
+ if(t.highway==='track'&&['grade2'].includes(t.tracktype))
+  return {type:'gravel',evidence:'inferred',confidence:.70,reason:'track grade suggests compacted gravel'};
+ // Do not infer road-adjacent walkways or general bike/pedestrian facilities.
+ return null;
+}
+function graphFromElements(elements,reviews={},preference='both',connectors=[],{includeLikely=false}={}){
  const nodes=new Map(),adj=new Map(),edges=[],byId=new Map();
  for(const e of elements)if(e.type==='node'){
   const lat=Number(e.lat),lon=Number(e.lon),id=Number(e.id);
@@ -51,12 +74,14 @@ function graphFromElements(elements,reviews={},preference='both',connectors=[]){
   for(let i=1;i<w.nodes.length;i++){
    const a=Number(w.nodes[i-1]),b=Number(w.nodes[i]),pa=nodes.get(a),pb=nodes.get(b);
    if(!pa||!pb||a===b)continue;
-   const id=keyFor(w.id,a,b),classification=material(tags,reviews,id);
+   const id=keyFor(w.id,a,b),classification=material(tags,reviews,id)||
+    (includeLikely&&!reviews?.[id]?.confirmed?likelyNatural(tags):null);
    if(!classification||!permitted.has(classification.type))continue;
    const length=meters(pa,pb);
    if(!Number.isFinite(length)||length<.25||length>1600||edgeKeys.has(id))continue;
    edgeKeys.add(id);
    const e={a,b,id,wayId:w.id,material:classification.type,evidence:classification.evidence,
+    confidence:classification.confidence??1,
     length,name:tags.name||'Unnamed trail'};
    edges.push(e);byId.set(id,e);
    if(!adj.has(a))adj.set(a,[]);
@@ -646,8 +671,8 @@ function buildFromData(elements,options,reviews={},connectors=[]){
 }
 function buildOptionsFromData(elements,options,reviews={},connectors=[]){
  const {center,material:preferred='both',miles=5,shape='loop',
-  allowRoadLinks=true,maxRoadMeters=240,maxOptions=4,scanMeta=null}=options;
- const graph=graphFromElements(elements,reviews,preferred,connectors);
+  allowRoadLinks=true,includeLikely=true,maxRoadMeters=240,maxOptions=4,scanMeta=null}=options;
+ const graph=graphFromElements(elements,reviews,preferred,connectors,{includeLikely});
  const originalNetworks=components(graph).filter(c=>c.totalLength>=25).length;
  if(allowRoadLinks)bridgeNetworks(graph,elements,{maxRoadMeters});
  const networks=components(graph);
@@ -766,11 +791,12 @@ async function planOptions(options,{fetcher=fetch,reviews={},connectors=[],onPro
  return buildOptionsFromData(scan.elements,{
   center:{lat,lon},miles,material:preferred,shape:options.shape,
   allowRoadLinks:options.allowRoadLinks!==false,
+  includeLikely:options.includeLikely!==false,
   maxRoadMeters:options.maxRoadMeters||240,
   maxOptions:options.maxOptions||4,scanMeta:scan
  },reviews,connectors);
 }
-window.SurfaceStrideStrictSoft={plan,planOptions,planBetween,buildFromData,buildOptionsFromData,_test:{scanRegion,loadVisible,bridgeNetworks,networkWalks,chooseNetworkWalk,routeBetweenData,
+window.SurfaceStrideStrictSoft={plan,planOptions,planBetween,buildFromData,buildOptionsFromData,_test:{likelyNatural,scanRegion,loadVisible,bridgeNetworks,networkWalks,chooseNetworkWalk,routeBetweenData,
   graphFromElements,components,shortest,pathTo,findLoop,outBack,material,keyFor,routeFromWalk,load,access
 }};
 })();
