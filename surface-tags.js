@@ -78,7 +78,10 @@ function parseElements(data){
     for(let i=1;i<way.nodes.length;i++){
       const a=nodes.get(way.nodes[i-1]),b=nodes.get(way.nodes[i]);
       if(!a||!b||dist(a,b)<.5)continue;
+      const nodeA=Number(way.nodes[i-1]),nodeB=Number(way.nodes[i]);
+      const segmentKey=String(way.id)+':'+Math.min(nodeA,nodeB)+':'+Math.max(nodeA,nodeB);
       segments.push({a,b,surface:sf.surface,evidence:sf.evidence,raw:sf.raw,
+        nodeA,nodeB,segmentKey,
         name:t.name||'',id:way.id,highway:t.highway,informal,
         foot:t.foot||'',trail_visibility:t.trail_visibility||'',tracktype:t.tracktype||'',
         likelyTrail,microtrail:isPath&&(informal||wayLength<180),
