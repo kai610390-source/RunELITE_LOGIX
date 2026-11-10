@@ -61,12 +61,28 @@ function parseElements(data){
   for(const way of elements){
     if(way.type!=='way'||!Array.isArray(way.nodes)||!VALID.has(way.tags?.highway))continue;
     const t=way.tags;
-    if(['private','no','customers','permit'].includes(t.access)&&!['yes','designated','permissive'].includes(t.foot))continue;
+    const pedestrianAllowed=['yes','designated','permissive','official'].includes(t.foot);
+    if(['private','no','customers','permit'].includes(t.foot))continue;
+    if(['private','no','customers','permit'].includes(t.access)&&!pedestrianAllowed)continue;
+    if(t.highway==='construction'||t.highway==='proposed')continue;
     const sf=guess(t);
+    const isPath=['path','footway','track','bridleway'].includes(t.highway)&&
+      !['sidewalk','crossing','traffic_island'].includes(t.footway);
+    const likelyTrail=isPath&&sf.surface==='unknown';
+    const informal=t.informal==='yes'||t.trail_visibility==='bad'||t.trail_visibility==='horrible';
+    const wayLength=way.nodes.reduce((sum,id,index)=>{
+      if(index===0)return sum;
+      const p=nodes.get(way.nodes[index-1]),q=nodes.get(id);
+      return p&&q?sum+dist(p,q):sum;
+    },0);
     for(let i=1;i<way.nodes.length;i++){
       const a=nodes.get(way.nodes[i-1]),b=nodes.get(way.nodes[i]);
       if(!a||!b||dist(a,b)<.5)continue;
-      segments.push({a,b,surface:sf.surface,evidence:sf.evidence,raw:sf.raw,name:t.name||'',id:way.id});
+      segments.push({a,b,surface:sf.surface,evidence:sf.evidence,raw:sf.raw,
+        name:t.name||'',id:way.id,highway:t.highway,informal,
+        foot:t.foot||'',trail_visibility:t.trail_visibility||'',tracktype:t.tracktype||'',
+        likelyTrail,microtrail:isPath&&(informal||wayLength<180),
+        pathLength:wayLength,wayNodes:way.nodes.length});
     }
   }
   return segments;
