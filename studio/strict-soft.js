@@ -296,7 +296,7 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
  if(!start)throw Error('Missing starting node');
  const coordinates=[[start.lat,start.lon]],spans=[],lengths=[0],edgeAt=[];
  const byMaterial={gravel:0,dirt:0,paved:0,unknown:0};
- let total=0,used=0,reviewed=0,road=0,roadSections=0;
+ let total=0,used=0,reviewed=0,inferred=0,road=0,roadSections=0;
  let roadRun=0,maxRoadRun=0;
  const roadNames=new Set(),softWays=new Set();
  for(let i=0;i<walk.edges.length;i++){
@@ -311,12 +311,14 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
   byMaterial[surface]+=e.length;total+=e.length;
   if(e.evidence==='osm'){used+=e.length;softWays.add(String(e.wayId));}
   else if(e.evidence==='reviewed'){reviewed+=e.length;softWays.add(String(e.wayId));}
+  else if(e.evidence==='inferred'){inferred+=e.length;softWays.add(String(e.wayId));}
   else if(e.evidence==='road'){
    road+=e.length;roadNames.add(e.roadNames?.join(' / ')||e.name);
    if(roadRun===0)roadSections++;roadRun+=e.length;maxRoadRun=Math.max(maxRoadRun,roadRun);
   }
   if(e.evidence!=='road')roadRun=0;
-  const evidence=e.evidence==='osm'?'tagged':e.evidence==='road'?'road':'reviewed';
+  const evidence=e.evidence==='osm'?'tagged':e.evidence==='road'?'road':
+   e.evidence==='inferred'?'inferred':'reviewed';
   let last=spans[spans.length-1];
   if(!last||last.surface!==surface||last.evidence!==evidence){
    last={surface,evidence,points:[coordinates[coordinates.length-1]]};
@@ -351,7 +353,11 @@ function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
    paved:pct('paved'),track:0,unknown:pct('unknown')},
   soft_percent:Number(((byMaterial.dirt+byMaterial.gravel)/total*100).toFixed(1)),
   tagged_percent:Math.round(used/total*100),reviewed_percent:Math.round(reviewed/total*100),
-  inferred_percent:0,unknown_percent:pct('unknown'),match_percent:pct('dirt')+pct('gravel'),
+  inferred_percent:Number((inferred/total*100).toFixed(1)),
+  confirmed_soft_percent:Number(((used+reviewed)/total*100).toFixed(1)),
+  probable_soft_percent:Number((inferred/total*100).toFixed(1)),
+  inferred_miles:Number((inferred/MI).toFixed(2)),
+  unknown_percent:pct('unknown'),match_percent:pct('dirt')+pct('gravel'),
   strictSoft:true,allowRoadLinks:road>0,road_meters:Math.round(road),
   road_miles:Number((road/MI).toFixed(2)),road_percent:Number((road/total*100).toFixed(1)),
   road_sections:roadSections,max_road_link_m:Math.round(maxRoadRun),
@@ -703,6 +709,7 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
   const shapePenalty=shape==='loop'&&!choice.hasCycle?.18:0;
   if(route.max_road_link_m>maxRoadMeters||route.road_sections>4)continue;
   const score=deviation*1.6+roadPct*2.1+
+   (route.inferred_percent||0)/100*.32+
    (route.surface_percent.unknown||0)/100*.55+
    shapePenalty+choice.offset/45000;
   route.trail_ways_count=route.trail_ways_count||0;
@@ -712,10 +719,12 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
   route.softPriority=true;
   route.requested_miles=miles;
   const note=
-   route.soft_percent.toFixed(1)+'% mapped/reviewed gravel or dirt · '+
+   route.soft_percent.toFixed(1)+'% likely gravel/dirt ('+
+   route.confirmed_soft_percent.toFixed(1)+'% mapped/reviewed, '+
+   route.probable_soft_percent.toFixed(1)+'% inferred from OSM trail type) · '+
    route.road_miles.toFixed(2)+' mi short mapped road/footway connectors'+
    (route.surface_percent.unknown?' (some road surfaces not tagged)':'')+
-   '. Trail-network geometry comes from OSM or confirmed sketches; verify access and surfaces before running.'+
+   '. Unknown-surface trail classifications are estimates from OSM path types; verify access and surfaces before running.'+
    (scanMeta?.missing?' '+scanMeta.missing+' map regions were unavailable.':'')+
    (scanMeta?.region?.clipped?' Search clipped to 7.5 km; zoom in to explore other areas.':'');
   route.strictNote=note;
