@@ -72,5 +72,67 @@ function imageLine(data){
  best.sort((a,b)=>b.score-a.score);
  return best[Math.floor(Math.random()*Math.min(7,best.length))];
 }
-window.SurfaceStrideTrailFocus={anchored,imageLine,_test:{corridor,unitDirection}};
+
+// Suggest multiple distinct trail-like locations across the ENTIRE aerial
+// image, not just around the center. Visual detections are not ground truth.
+function screenCandidates(data,{mapped=[],maxCandidates=8}={}){
+ const w=data.width,h=data.height;
+ if(w<120||h<120)return [];
+ const max=Math.max(1,Math.min(18,Math.round(maxCandidates)));
+ const raw=[];
+ // Mapped path coordinates can appear anywhere in the camera footprint.
+ // Keep only those that also show a visually convincing corridor.
+ const anchors=(Array.isArray(mapped)?mapped:[]).slice(0,200);
+ for(const p of anchors){
+  if(!Number.isFinite(p.x)||!Number.isFinite(p.y))continue;
+  const {x:dx,y:dy}=unitDirection(p.direction);
+  const nx=-dy,ny=dx;
+  let best=null;
+  for(let along=-24;along<=24;along+=8)
+   for(let side=-18;side<=18;side+=6){
+    const x=Math.round(p.x+along*dx+side*nx),y=Math.round(p.y+along*dy+side*ny);
+    if(x<34||x>w-34||y<34||y>h-34)continue;
+    const line=corridor(data,x,y,dx,dy);
+    if(!line.passes)continue;
+    const score=line.score+.25-Math.abs(side)*.008-Math.abs(along)*.002;
+    if(!best||score>best.score)best={x,y,score,dx,dy,
+     source:'mapped-visible-trail',name:p.name||'Mapped footpath'};
+   }
+  if(best)raw.push(best);
+ }
+ // Search all of the visible frame, including off-center trails.
+ // The margins are the minimum needed for our 24px corridor samples.
+ const step=Math.max(5,Math.round(Math.min(w,h)/105)),margin=38;
+ for(let y=margin;y<h-margin;y+=step)
+  for(let x=margin;x<w-margin;x+=step){
+   for(let a=0;a<8;a++){
+    const angle=a*Math.PI/8,dx=Math.cos(angle),dy=Math.sin(angle);
+    const line=corridor(data,x,y,dx,dy);
+    if(!line.passes||line.contrast<.10||line.greenContrast<.17)continue;
+    raw.push({x,y,score:line.score,dx,dy,source:'possible-image-trail'});
+   }
+  }
+ if(!raw.length)return [];
+ // Group detections belonging to the same straight/parallel narrow trail
+ // while preserving candidates from other paths elsewhere in the image.
+ raw.sort((a,b)=>b.score-a.score);
+ const selected=[];
+ const separation=Math.max(45,Math.min(87,Math.round(w*.11)));
+ for(const candidate of raw){
+  if(selected.length>=max)break;
+  const repeated=selected.some(prev=>{
+   if(Math.hypot(prev.x-candidate.x,prev.y-candidate.y)<separation)return true;
+   const parallel=Math.abs(prev.dx*candidate.dx+prev.dy*candidate.dy)>.965;
+   if(!parallel)return false;
+   const across=Math.abs((candidate.x-prev.x)*(-prev.dy)+(candidate.y-prev.y)*prev.dx);
+   // Parallel sightings less than 19px apart are likely the same line,
+   // even when quite far along it. Limit the span so curves aren't lost.
+   const along=Math.abs((candidate.x-prev.x)*prev.dx+(candidate.y-prev.y)*prev.dy);
+   return across<19&&along<Math.max(160,w*.28);
+  });
+  if(!repeated)selected.push(candidate);
+ }
+ return selected.map((p,i)=>({...p,rank:i+1}));
+}
+window.SurfaceStrideTrailFocus={anchored,imageLine,screenCandidates,_test:{corridor,unitDirection}};
 })();
