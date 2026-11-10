@@ -464,30 +464,42 @@ function chooseNetworkWalk(graph,networks,center,target,shape,variant=0){
  return best;
 }
 function buildFromData(elements,options,reviews={},connectors=[]){
- const {center,material:preferred='both',miles=5,shape='loop'}=options;
+ const {center,material:preferred='both',miles=5,shape='loop',
+  variant=0,scanMeta=null}=options;
  const graph=graphFromElements(elements,reviews,preferred,connectors);
- const comps=components(graph);
- const picked=pickStart(graph,center,comps);
- if(!picked)throw Error('No connected, access-permitted gravel/dirt paths near the map center. Try another location or label a missing trail section in the Surface Trainer.');
- const target=MI*miles;
- let chosen;
- if(shape==='loop')chosen=findLoop(graph,picked.id,target)||outBack(graph,picked.id,target,'out-and-back');
- else chosen=outBack(graph,picked.id,target,shape);
- const actualShape=shape==='loop'&&!chosen.hasCycle?'out-and-back':shape;
+ const comps=components(graph),target=MI*miles;
+ const chosen=chooseNetworkWalk(graph,comps,center,target,shape,variant);
+ if(!chosen)throw Error('No connected, access-permitted gravel/dirt paths in the scanned map area. Try moving or zooming out, or manually reviewing missing trail connections.');
+ const actualShape=chosen.shape;
  const name=chosen.hasCycle?'Connected gravel/dirt loop':
   actualShape==='out-and-back'?'Connected gravel/dirt out & back':'Connected gravel/dirt route';
  const route=routeFromWalk(graph,chosen.walk,name,actualShape,target,chosen.stem);
  const measured=route.distance_miles,shortfall=Math.abs(measured-miles)/Math.max(1,miles);
- let note=(route.reviewed_percent?
-  route.reviewed_percent+'% of route length is based on user-reviewed surface labels. ':'')+
-  (chosen.hasCycle&&chosen.stem?'Loop includes '+route.stem_miles.toFixed(2)+' mi of repeated connecting trail. ':'');
- if(shape==='loop'&&!chosen.hasCycle)note+='No closed gravel/dirt circuit found; showing a real out-and-back instead. ';
- if(shortfall>.18)note+='Target is '+miles.toFixed(1)+' mi; only '+measured.toFixed(2)+
-  ' mi was found in this connected local map extract. No paved gap was added. ';
- note+='Route materials come from OSM tags or your reviews, not ground-truth measurements.';
+ const waysUsed=new Set(chosen.walk.edges.map(e=>String(e.wayId))).size;
+ const qualifyingNetworks=comps.filter(c=>c.totalLength>=25).length;
+ route.trail_ways_count=waysUsed;route.trail_segments_count=chosen.walk.edges.length;
+ route.networks_found=qualifyingNetworks;
+ route.scanned_tiles=scanMeta?.loaded||1;
+ const notes=[];
+ notes.push('Searched '+(scanMeta?.total||1)+' map region(s); found '+qualifyingNetworks+
+  ' separate gravel/dirt trail network(s). This route connects '+waysUsed+
+  ' mapped or reviewed trail section(s) in one continuous network.');
+ if(qualifyingNetworks>1)notes.push('Other trail networks were not joined unless a confirmed gravel/dirt connector exists.');
+ if(route.reviewed_percent)notes.push(route.reviewed_percent+
+  '% of the route is based on your confirmed surface labels.');
+ if(chosen.hasCycle&&chosen.stem)notes.push('Loop includes '+route.stem_miles.toFixed(2)+' mi of repeated approach trail.');
+ if(shape==='loop'&&!chosen.hasCycle)notes.push('No suitable closed soft-surface circuit was found; using a connected out-and-back instead.');
+ if(shortfall>.18)notes.push('Requested '+miles.toFixed(1)+' mi; found '+measured.toFixed(2)+
+  ' mi without adding paved roads.');
+ if(scanMeta?.missing)notes.push(scanMeta.missing+' of '+scanMeta.total+
+  ' trail map regions did not load; the route search is incomplete.');
+ if(scanMeta?.region?.clipped)notes.push('The map is zoomed out beyond the 7.5-km scan limit. Only the central part was searched; zoom in or move the map to search another part.');
+ notes.push('Surfaces come from OSM tags or your reviews, not ground-truth measurements.');
+ const note=notes.join(' ');
  return {route,note,graph,components:comps,edges:graph.edges.length,
   tagged:graph.edges.filter(e=>e.evidence==='osm').length,
-  reviewed:graph.edges.filter(e=>e.evidence==='reviewed').length};
+  reviewed:graph.edges.filter(e=>e.evidence==='reviewed').length,
+  qualifyingNetworks,scan:scanMeta};
 }
 function routeBetweenData(elements,waypoints,{material:preferred='both',reviews={},connectors=[]}={}){
  if(!Array.isArray(waypoints)||waypoints.length<2||waypoints.length>16)throw Error('Use 2–16 map points.');
@@ -525,14 +537,19 @@ async function planBetween(points,{material='both',reviews={},connectors=[],fetc
  const elements=await load({lat,lon},Math.min(25,Math.max(1,length/MI)),{fetcher});
  return routeBetweenData(elements,points,{material,reviews,connectors});
 }
-async function plan(options,{fetcher=fetch,reviews={},connectors=[]}={}){
+async function plan(options,{fetcher=fetch,reviews={},connectors=[],onProgress=null}={}){
  const {lat,lon,miles,material:preferred='both'}=options;
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(miles)||
     miles<.2||miles>25)throw Error('Pick a valid map area and route distance.');
- const elements=await load({lat,lon},miles,{fetcher});
- return buildFromData(elements,{center:{lat,lon},material:preferred,miles,shape:options.shape},reviews,connectors);
+ const scan=await loadVisible({lat,lon},miles,{
+  bounds:options.bounds||null,fetcher,onProgress
+ });
+ return buildFromData(scan.elements,{
+  center:{lat,lon},material:preferred,miles,shape:options.shape,
+  variant:options.variant||0,scanMeta:scan
+ },reviews,connectors);
 }
-window.SurfaceStrideStrictSoft={plan,planBetween,buildFromData,_test:{routeBetweenData,
+window.SurfaceStrideStrictSoft={plan,planBetween,buildFromData,_test:{scanRegion,loadVisible,chooseNetworkWalk,routeBetweenData,
   graphFromElements,components,shortest,pathTo,findLoop,outBack,material,keyFor,routeFromWalk,load,access
 }};
 })();
