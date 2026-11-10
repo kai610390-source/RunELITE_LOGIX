@@ -28,11 +28,14 @@ function access(t){
  return TYPES.has(t.highway);
 }
 function material(t,review,key){
- const tag=MATERIAL[(t.surface||'').trim().toLowerCase()];
- if(tag)return {type:tag,evidence:'osm'};
  const saved=review?.[key];
- if(saved?.confirmed&&['gravel','dirt'].includes(saved.label))return {type:saved.label,evidence:'reviewed'};
- return null;
+ // A verified local correction can exclude a mislabeled OSM track.
+ if(saved?.confirmed){
+  if(['gravel','dirt'].includes(saved.label))return {type:saved.label,evidence:'reviewed'};
+  return null;
+ }
+ const tag=MATERIAL[(t.surface||'').trim().toLowerCase()];
+ return tag?{type:tag,evidence:'osm'}:null;
 }
 function graphFromElements(elements,reviews={},preference='both'){
  const nodes=new Map(),adj=new Map(),edges=[],byId=new Map();
