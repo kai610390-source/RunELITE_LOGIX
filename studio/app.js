@@ -464,6 +464,70 @@ async function toggleGravel(force=false){
   message('Map extract unavailable. Try aerial scout or pan to another area.',5000);
  }
 }
+function aerialPopup(candidate){
+ const div=document.createElement('div');div.className='trail-review';
+ const heading=document.createElement('h3');heading.textContent='Possible unmapped narrow path';
+ const p=document.createElement('p');
+ p.textContent='Aerial pattern: '+candidate.kind+'. Could instead be drainage, a rooftop, a shadow, or bare ground.';
+ const note=document.createElement('p');note.className='muted';
+ note.textContent='Unverified image interpretation. No proof of walking access, gravel, or safe connectivity.';
+ const button=document.createElement('button');button.textContent='Review and include segment';
+ button.addEventListener('click',()=>addReviewedSegment(candidate.a,candidate.b,'aerial image line'));
+ const view=document.createElement('button');view.textContent='Inspect in Instant Street View';
+ view.style.background='#edf5ea';view.style.color='#275b42';
+ view.addEventListener('click',()=>{
+  const lat=(candidate.a.lat+candidate.b.lat)/2,lon=(candidate.a.lon+candidate.b.lon)/2;
+  window.open('https://www.instantstreetview.com/s/'+lat.toFixed(6)+','+lon.toFixed(6),
+   '_blank','noopener,noreferrer');
+ });
+ div.append(heading,p,note,button,view);return div;
+}
+function clearAerial(){
+ st.aerialLayer.clearLayers();st.aerialOn=false;st.aerialCandidates=[];
+ $('aerialBtn').classList.remove('active');
+ $('aerialStatus').textContent='Aerial suggestions hidden. Scan another area or trace a path manually.';
+}
+async function scanAerial(){
+ if(st.aerialBusy||!st.map)return;
+ const A=window.SurfaceStrideAerial;
+ if(!A?.scan){$('aerialStatus').textContent='Aerial detection script was blocked. Refresh the page.';return;}
+ st.aerialBusy=true;$('aerialScanBtn').disabled=true;
+ $('aerialStatus').textContent='Scanning a roughly 510 m-wide image around the center of the map…';
+ try{
+  const candidates=await A.scan(st.map.getCenter());
+  st.aerialCandidates=candidates;st.aerialLayer.clearLayers();
+  for(const candidate of candidates){
+   const l=L.polyline([[candidate.a.lat,candidate.a.lon],[candidate.b.lat,candidate.b.lon]],{
+    color:candidate.kind==='dark corridor'?'#e69f66':'#ffb649',
+    weight:4.7,dashArray:'5 7',opacity:.9,interactive:true});
+   l.bindPopup(()=>aerialPopup(candidate),{maxWidth:275});
+   l.on('click',e=>L.DomEvent.stopPropagation(e));
+   l.addTo(st.aerialLayer);
+  }
+  st.aerialOn=candidates.length>0;
+  $('aerialBtn').classList.toggle('active',st.aerialOn);
+  $('aerialStatus').textContent=candidates.length?
+   candidates.length+' LOW-confidence features in aerial imagery. Dashed orange may indicate narrow tracks, drainage, or image artifacts. Click to inspect and review.':
+   'No obvious narrow lines detected here. Tiny dirt trails beneath trees may remain invisible; trace a visible route manually.';
+  message(candidates.length?candidates.length+' possible image lines shown; verify before use.':
+   'No aerial line suggestions here. You can trace a missing trail manually.',6500);
+ }catch(err){
+  $('aerialStatus').textContent='Aerial scan unavailable: '+(err?.message||err)+'. Try tracing the path yourself.';
+  message('Aerial scanner unavailable. Manual trail tracing still works.',5500);
+ }finally{st.aerialBusy=false;$('aerialScanBtn').disabled=false;}
+}
+function toggleTrace(){
+ st.traceOn=!st.traceOn;
+ if(st.traceOn){
+  if(st.straight){st.straight=false;$('straightToggle').checked=false;}
+  if(st.mode!=='draw')setMode('draw',true);
+  switchTab('build');
+  status('Trace mode: click several points along the narrow trail. These links will stay in the route as unverified manual segments. Click Finish tracing when done.');
+  message('Trace active. Click along the skinny trail; each connection is a manual sketch.',7000);
+ }else status('Trail tracing ended. New waypoint legs can follow the mapped walking network.');
+ $('traceTrailBtn').textContent=st.traceOn?'✓ Finish tracing small trail':'✎ Trace a path I can see';
+ $('traceTrailBtn').classList.toggle('active',st.traceOn);
+}
 async function showWeather(){
  $('weatherCard').hidden=false;$('weatherInfo').textContent='Loading current conditions…';
  try{
@@ -636,6 +700,10 @@ function wires(){
   $('labelsBtn').classList.toggle('active',st.labelsOn);
  });
  $('gravelBtn').addEventListener('click',()=>toggleGravel());
+ $('aerialBtn').addEventListener('click',scanAerial);
+ $('aerialScanBtn').addEventListener('click',scanAerial);
+ $('clearAerialBtn').addEventListener('click',clearAerial);
+ $('traceTrailBtn').addEventListener('click',toggleTrace);
  $('scanGravelBtn').addEventListener('click',()=>toggleGravel(true));
  $('clearGravelBtn').addEventListener('click',()=>toggleGravel());
  $('zoneBtn').addEventListener('click',armZone);$('clearZoneBtn').addEventListener('click',clearZone);
