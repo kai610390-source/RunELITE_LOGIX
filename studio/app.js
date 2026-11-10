@@ -12,7 +12,7 @@ const COLORS={grass:'#50d487',dirt:'#b7825a',gravel:'#efb061',paved:'#9db6b0',tr
 const KM=1.609344,MI=1609.344;
 const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,preference:'soft',
  terrain:'any',quiet:true,waypoints:[],straight:false,reroll:0,working:false,
- strictSoft:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,
+ strictSoft:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
  aerialOn:false,aerialCandidates:[],aerialBusy:false,
  routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
@@ -437,6 +437,135 @@ function addReviewedSegment(start,end,source='mapped trail'){
  st.map.closePopup();
  status('Trail segment added. Nearby connecting legs are now being routed. Dashed gold segments are not verified for access or surface.');
  message('Trail added as an explicit segment; check its access and continuity.',6500);
+}
+function trainerCounts(){
+ const box=$('trainerCounts');
+ if(!VISION){box.textContent='Training script did not load. Refresh the page.';return;}
+ const c=VISION.count(),total=Object.values(c).reduce((a,b)=>a+b,0);
+ box.textContent='Examples saved only in this browser: '+total+
+  ' · gravel '+c.gravel+' · dirt '+c.dirt+' · grass '+c.grass+
+  ' · paved '+c.paved+' · unknown '+c.unknown+
+  ' · '+VISION.reviewedCount()+' mapped sections human-reviewed.';
+}
+function predictionLine(sample){
+ if(!VISION||!sample)return;
+ const p=VISION.predict(sample.vector);
+ $('trainerPrediction').textContent=p.trained?
+  'Model suggestion: '+(p.label==='paved'?'paved / road':p.label)+
+  ' ('+Math.round(p.confidence*100)+'% vote agreement). UNVERIFIED · you must decide the true surface.':
+  'Not trained yet. '+p.reason;
+}
+function showTrainerSample(sample,segment){
+ st.trainerSample=sample;st.trainerSegment=segment||null;
+ $('trainerBox').hidden=false;
+ $('trainerImage').src=sample.preview;
+ const target=segment?('Mapped '+(segment.highway||'path')+
+  ' · '+(segment.name||'unnamed')+' · one OSM segment only'):
+  'Map-center or user-owned training sample (not attached to a trail segment)';
+ $('trainerContext').textContent=target+
+  (sample.source==='NAIP'?' · NAIP close-up ~'+Math.round(sample.patchMeters)+' m wide':' · '+sample.source);
+ $('trainerStatus').textContent='Choose the actual surface. After training, a review confirmation can enable this exact mapped trail segment in strict routing.';
+ predictionLine(sample);
+ trainerCounts();
+}
+async function trainAt(lat,lon,segment=null){
+ if(!VISION){message('Surface trainer did not load. Refresh the Studio.');return;}
+ switchTab('discover');
+ $('trainerBox').hidden=false;$('trainerContext').textContent='Loading zoomed-in NAIP image…';
+ $('trainerPrediction').textContent='Inspecting the aerial crop…';
+ $('trainMapCenterBtn').disabled=true;
+ try{
+  const sample=await VISION.capture(lat,lon,{spanMeters:38,px:384});
+  showTrainerSample(sample,segment);
+  message('Zoomed-in aerial sample loaded. Label its surface to train the classifier.',5600);
+ }catch(err){
+  $('trainerContext').textContent='Image unavailable: '+(err?.message||err);
+  $('trainerPrediction').textContent='Try a smaller visible path or an image you own.';
+  st.trainerSample=null;st.trainerSegment=null;
+ }finally{$('trainMapCenterBtn').disabled=false;}
+}
+function startTraining(segment){
+ if(!segment?.a||!segment?.b){message('Select a mapped path first.');return;}
+ const lat=(segment.a[0]+segment.b[0])/2,lon=(segment.a[1]+segment.b[1])/2;
+ st.map?.closePopup();
+ trainAt(lat,lon,segment);
+}
+async function trainUpload(file){
+ if(!file||!VISION)return;
+ switchTab('discover');
+ $('trainerBox').hidden=false;
+ $('trainerContext').textContent='Reading training image…';
+ try{
+  const sample=await VISION.fromFile(file);
+  showTrainerSample(sample,null);
+  message('Image ready. Choose its known surface label.',4500);
+ }catch(e){$('trainerContext').textContent='Could not open image: '+(e?.message||e);}
+ finally{$('trainFile').value='';}
+}
+function labelSample(label){
+ if(!VISION||!st.trainerSample)return;
+ try{
+  const sample=st.trainerSample;
+  VISION.addExample(sample.vector,label,{source:sample.source,lat:sample.lat,lon:sample.lon});
+  const segment=st.trainerSegment;
+  let reviewed=false;
+  if(segment?.segmentKey){
+   const proceed=window.confirm('You labeled the image as '+label+
+    '. Apply this as a HUMAN-REVIEWED label to this exact mapped trail segment? Only do this if you can actually identify the surface and pedestrian access. Image predictions alone are not enough.');
+   if(proceed){VISION.review(segment,label);reviewed=true;}
+  }
+  trainerCounts();
+  predictionLine(sample);
+  $('trainerStatus').textContent='Training example saved locally: '+label+
+   (reviewed?'. This mapped segment is now human-reviewed for strict routing.':
+    '. No map segment was confirmed.');
+  if(st.gravelSegments.length)drawGravel(st.gravelSegments);
+  message(reviewed?'Surface review saved. Generate the strict route again to use it.':
+    'Training example saved. The classifier improves as you add diverse labels.',6600);
+ }catch(e){message('Could not save label: '+(e?.message||e),6400);}
+}
+async function batchAnalyze(){
+ if(st.batchBusy||!VISION)return;
+ let c=VISION.count(),total=Object.values(c).reduce((a,b)=>a+b,0);
+ if(total<8||Object.values(c).filter(n=>n>=2).length<2){
+  $('batchStatus').textContent='Label at least 8 NAIP samples in two or more classes first. The classifier is not trained yet.';
+  switchTab('discover');return;
+ }
+ st.batchBusy=true;$('trainBatchBtn').disabled=true;
+ $('batchStatus').textContent='Checking unknown paths with close-up aerial patches…';
+ try{
+  if(!st.gravelSegments.length){
+   st.gravelSegments=await E.nearbyGravel(st.map.getCenter());
+   drawGravel(st.gravelSegments);
+  }
+  const reviews=VISION.getReviews(),seen=new Set();
+  const unknown=st.gravelSegments.filter(s=>{
+   if(!s.segmentKey||reviews[s.segmentKey]?.confirmed||s.surface!=='unknown')return false;
+   const ref=String(s.id);if(seen.has(ref))return false;seen.add(ref);return true;
+  }).slice(0,6);
+  if(!unknown.length){
+   $('batchStatus').textContent='No nearby unreviewed unknown-surface paths in this map extract.';return;
+  }
+  let done=0,suggestions=0;
+  for(const s of unknown){
+   try{
+    const sample=await VISION.capture((s.a[0]+s.b[0])/2,(s.a[1]+s.b[1])/2,
+      {spanMeters:38,px:384});
+    const prediction=VISION.predict(sample.vector);
+    st.aiSuggestions.set(s.segmentKey,prediction);
+    if(prediction.label!=='unknown'&&prediction.confidence>=.75)suggestions++;
+   }catch(e){/* Keep other candidates available. */}
+   done++;
+   $('batchStatus').textContent='Visual checks '+done+'/'+unknown.length+
+     ' · '+suggestions+' likely material suggestions. ALL are unverified.';
+   if(done<unknown.length)await new Promise(resolve=>setTimeout(resolve,850));
+  }
+  if(st.gravelSegments.length)drawGravel(st.gravelSegments);
+  $('batchStatus').textContent='Analyzed '+done+' nearby unknown trail sections; '+suggestions+
+   ' model suggestions. Dotted cyan/colored lines are still UNVERIFIED until you open and confirm them.';
+ }catch(e){
+  $('batchStatus').textContent='Batch imagery unavailable: '+(e?.message||e);
+ }finally{st.batchBusy=false;$('trainBatchBtn').disabled=false;}
 }
 function trailReviewPopup(s){
  const div=document.createElement('div');div.className='trail-review';
