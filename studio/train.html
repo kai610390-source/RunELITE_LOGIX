@@ -24,6 +24,12 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 .image-frame{position:relative;aspect-ratio:1/1;background:#d1e0cc;overflow:hidden;display:grid;place-items:center}
 .image-frame img{display:none;width:100%;height:100%;object-fit:cover;image-rendering:auto}
 .image-frame.has-image img{display:block}
+.center-target{display:none;position:absolute;left:50%;top:50%;width:24px;height:24px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #183420,0 0 9px #0008;transform:translate(-50%,-50%);pointer-events:none}
+.center-target:before,.center-target:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px #000}
+.center-target:before{left:9px;top:-10px;width:2px;height:40px}
+.center-target:after{top:9px;left:-10px;width:40px;height:2px}
+.center-target span{display:block;position:absolute;left:7px;top:7px;width:6px;height:6px;border-radius:50%;background:#fadc75;z-index:2}
+.image-frame.has-image .center-target{display:block}
 .placeholder{text-align:center;padding:20px 35px;color:#5e7e65;font-size:13px;line-height:1.7}
 .image-frame.has-image .placeholder{display:none}
 .spinner{width:35px;height:35px;border-radius:100%;border:4px solid #b7d6c0;border-top-color:#27754b;display:block;margin:0 auto 15px;animation:spin 900ms linear infinite}
@@ -59,10 +65,10 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 </style>
 </head>
 <body>
-<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V6</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
+<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V7</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
 <main class="container">
  <div class="topline">
-  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">A random zoomed-in aerial image from the Austin area appears automatically. Just tell it what surface you see.</p></div>
+  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">A random zoomed-in aerial image from the Austin area appears automatically. Identify the surface under the center marker.</p></div>
   <div class="counter"><b id="totalCount">0</b><span>Labels collected</span></div>
  </div>
  <div class="layout">
@@ -71,21 +77,22 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    <div id="imageFrame" class="image-frame">
     <div id="placeholder" class="placeholder"><span class="spinner"></span>Finding your first random close-up…</div>
     <img id="sampleImage" alt="Random zoomed-in public aerial image near Austin; choose its actual surface below">
-    <div class="image-note" id="scaleNote">Approx. 32 meters across · Enlarged aerial imagery</div>
+    <div class="center-target" aria-hidden="true"><span></span></div>
+    <div class="image-note" id="scaleNote">Approx. 220 meters across · Aerial imagery</div>
    </div>
    <div class="toolbar">
     <div class="toolbar-group">
      <button id="skipButton" class="btn primary" type="button">↻ Skip / next image</button>
      <button id="retryButton" class="btn secondary" type="button" hidden>Retry image</button>
     </div>
-    <div class="toolbar-group"><span style="font-size:10px;color:#8ba28e">Zoom</span><button id="zoomOut" type="button" class="btn small" title="Wider area">−</button><button id="zoomIn" type="button" class="btn small" title="Closer area">+</button></div>
+    <div class="toolbar-group"><span style="font-size:10px;color:#8ba28e">Field of view</span><button id="zoomOut" type="button" class="btn small" title="Wider area">−</button><button id="zoomIn" type="button" class="btn small" title="Closer area">+</button></div>
    </div>
   </section>
   <section class="card">
    <div class="card-head"><strong>Classify the image</strong><span class="chip">YOUR ANSWER TRAINS IT</span></div>
    <div class="panel-body">
     <h2 class="bigquestion">What's the surface?</h2>
-    <p class="help">Choose a surface below. The next random close-up loads automatically. If it's a roof, water, or impossible to tell, choose Not sure.</p>
+    <p class="help">Label the ground surface underneath the center target—not everything in the image. The next random image loads automatically. Choose Not sure if the target is a roof, water, or unclear.</p>
     <div class="label-buttons">
      <button type="button" data-label="gravel"><span class="swatch" style="background:#d9b480"></span>Gravel</button>
      <button type="button" data-label="dirt"><span class="swatch" style="background:#b38460"></span>Dirt</button>
@@ -115,9 +122,9 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    </div>
   </section>
  </div>
- <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. It does not automatically verify a surface or add a trail to strict routing. Images aren't saved with training labels.</p>
+ <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. It does not automatically verify a surface or add a trail to strict routing. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
 </main>
-<script src="./surface-vision.js?v=random-trainer-v6a"></script>
+<script src="./surface-vision.js?v=context-v7"></script>
 <script>
 (function(){
 'use strict';
@@ -139,7 +146,7 @@ const ZONES=[
  {name:'Northeast Austin',lat:30.3275,lon:-97.6738,r:700},
  {name:'Southwest Austin',lat:30.2292,lon:-97.8024,r:820}
 ];
-const state={busy:false,sample:null,span:32,sampleNo:0,pendingNext:null,version:0,zoneIndex:-1,lastCoords:null};
+const state={busy:false,sample:null,span:220,sampleNo:0,pendingNext:null,version:0,zoneIndex:-1,lastCoords:null};
 let sleepTimer=null;
 function message(value,kind=''){
  const s=$('status');s.textContent=value;s.className='notice '+kind;
@@ -182,14 +189,14 @@ async function loadRandom(reuse=false){
  $('skipButton').disabled=true;setLabelsDisabled(true);
  showLoading();
  try{
-  const sample=await V.capture(position.lat,position.lon,{spanMeters:state.span,px:384,timeout:13000});
+  const sample=await V.capture(position.lat,position.lon,{spanMeters:state.span,px:640,timeout:13000});
   if(version!==state.version)return;
   state.sample=sample;state.sampleNo++;
   $('sampleImage').src=sample.preview;
   $('imageFrame').classList.add('has-image');
   $('sampleTitle').textContent='Random surface #'+state.sampleNo;
   $('locationLabel').textContent=position.zone.toUpperCase();
-  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m across · public aerial imagery';
+  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m across · label the center target';
   message('Image ready. Choose the surface type; the next random image will load automatically.','');
  }catch(err){
   if(version!==state.version)return;
@@ -242,8 +249,8 @@ function exportFile(data,name){
 function wire(){
  $('skipButton').addEventListener('click',()=>loadRandom(false));
  $('retryButton').addEventListener('click',()=>loadRandom(true));
- $('zoomIn').addEventListener('click',()=>{state.span=Math.max(20,Math.round(state.span*.66));loadRandom(true);});
- $('zoomOut').addEventListener('click',()=>{state.span=Math.min(80,Math.round(state.span*1.5));loadRandom(true);});
+ $('zoomIn').addEventListener('click',()=>{state.span=Math.max(110,Math.round(state.span*.72));loadRandom(true);});
+ $('zoomOut').addEventListener('click',()=>{state.span=Math.min(900,Math.round(state.span*1.5));loadRandom(true);});
  document.querySelectorAll('[data-label]').forEach(b=>b.addEventListener('click',()=>label(b.dataset.label)));
  $('uploadButton').addEventListener('click',()=>$('uploadFile').click());
  $('uploadFile').addEventListener('change',e=>importPhoto(e.target.files?.[0]));

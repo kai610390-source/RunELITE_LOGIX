@@ -154,7 +154,8 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000}={}){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>85||Math.abs(lon)>180)
   throw Error('Invalid patch center');
  if(lat<24||lat>50||lon< -125||lon> -66)throw Error('NAIP is currently supported in the contiguous US only.');
- const p=merc(lon,lat),half=Math.max(10,Math.min(65,spanMeters/2));
+ // Allow wider contextual aerial crops in the random trainer (up to 1.2 km).
+ const p=merc(lon,lat),half=Math.max(10,Math.min(600,spanMeters/2));
  const q=new URLSearchParams({bbox:[p.x-half,p.y-half,p.x+half,p.y+half].map(x=>x.toFixed(2)).join(','),
   bboxSR:'3857',imageSR:'3857',size:px+','+px,format:'jpg',f:'image'});
  const sources=[
