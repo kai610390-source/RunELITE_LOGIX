@@ -70,18 +70,20 @@ async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
  }else throw Error('No map location to scan');
  const candidates=[],errors=[],size=448;
  const boxes=area.cells.slice(0,Math.max(1,Math.min(9,maxPatches)));
- for(let i=0;i<boxes.length;i++){
-  if(typeof onProgress==='function')onProgress({done:i,total:boxes.length,
-   candidates:candidates.length,errorCount:errors.length,clipped:area.clipped});
-  const box=boxes[i];
+ let completed=0,nextIndex=0;
+ const progress=()=>{
+  if(typeof onProgress==='function')onProgress({
+   done:completed,total:boxes.length,candidates:candidates.length,
+   errorCount:errors.length,clipped:area.clipped
+  });
+ };
+ progress();
+ async function scanBox(box){
   try{
-   const image=await imagery.capture(box,size,{
-    timeoutPerSource:5600
-   });
-   // More zoomed-out views have lower effective spatial resolution; reject
-   // large low-detail pixels rather than manufacturing tiny trails.
+   const image=await imagery.capture(box,size,{timeoutPerSource:5600});
+   // Limit scanning to actual aerial detail instead of interpolating pixels.
    const scale=Math.max(box.right-box.left,box.top-box.bottom)/size;
-   if(scale>2.1){errors.push('Pixel scale too low for skinny trails');continue;}
+   if(scale>2.1){errors.push('Pixel scale too low for skinny trails');return;}
    const found=trail.screenCandidates(image.raster,{maxCandidates:10});
    for(const spot of found){
     const center=pixelToEarth(spot.x,spot.y,box,size);
@@ -94,7 +96,16 @@ async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
      detection:'two-sided vegetation + continuous narrow line'});
    }
   }catch(error){errors.push(error?.message||String(error));}
+  finally{completed++;progress();}
  }
+ async function worker(){
+  while(nextIndex<boxes.length){
+   const index=nextIndex++;
+   await scanBox(boxes[index]);
+  }
+ }
+ const workers=Array.from({length:Math.min(3,boxes.length)},()=>worker());
+ await Promise.all(workers);
  const out=mergeCandidates(candidates,36);
  const stats={found:out.length,scanned:boxes.length,failed:errors.length,
   clipped:area.clipped,source:'NAIP/USGS public aerial imagery'};
