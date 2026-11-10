@@ -1,75 +1,109 @@
-/* Public NAIP aerial scan: potential line-like features, NOT verified trails. */
+/* SurfaceStride aerial scout V14.
+ * Finds multiple plausible narrow corridors across several aerial patches.
+ * A visual line is NEVER proof of a trail, ground material or public access.
+ * Uses public NAIP imagery through the shared provider fallback module.
+ */
 (function(){
 'use strict';
-const SERVICE='https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage';
-function darkLines(image,w,h){
- const rgba=image.data||image,light=new Uint8Array(w*h),green=new Uint8Array(w*h),soil=new Uint8Array(w*h);
- for(let i=0;i<w*h;i++){
-  const j=i*4,r=rgba[j],g=rgba[j+1],b=rgba[j+2],l=.21*r+.72*g+.07*b;
-  light[i]=Math.round(l);green[i]=g>r+6&&g>b+8&&l>38?1:0;
-  soil[i]=l>35&&l<200&&r>=g*.88&&g>=b*.85?1:0;
+const R=6378137,MI=111195;
+function merc(lon,lat){
+ const m=Math.max(-85,Math.min(85,lat))*Math.PI/180;
+ return {x:R*lon*Math.PI/180,y:R*Math.log(Math.tan(Math.PI/4+m/2))};
+}
+function earth(x,y){
+ return {lat:(2*Math.atan(Math.exp(y/R))-Math.PI/2)*180/Math.PI,
+  lon:x/R*180/Math.PI};
+}
+function mapArea(map){
+ if(!map?.getBounds)throw Error('Satellite map not available');
+ const b=map.getBounds();
+ const sw=merc(b.getWest(),b.getSouth()),ne=merc(b.getEast(),b.getNorth());
+ if(!Number.isFinite(sw.x)||!Number.isFinite(ne.y)||ne.x<=sw.x||ne.y<=sw.y)
+  throw Error('Invalid map bounds');
+ const center={x:(sw.x+ne.x)/2,y:(sw.y+ne.y)/2};
+ // Native NAIP detail is finite; 0.7 m paths cannot be recovered in a
+ // 3 km-wide image. Keep each inspection patch roughly 260-500m wide.
+ const actualW=ne.x-sw.x,actualH=ne.y-sw.y;
+ const w=Math.min(actualW,1350),h=Math.min(actualH,1350);
+ const cols=actualW<520?1:actualW<900?2:3;
+ const rows=actualH<520?1:actualH<900?2:3;
+ const cells=[];
+ for(let iy=0;iy<rows;iy++)for(let ix=0;ix<cols;ix++){
+  const left=center.x-w/2+w*ix/cols,
+   right=center.x-w/2+w*(ix+1)/cols,
+   bottom=center.y-h/2+h*iy/rows,
+   top=center.y-h/2+h*(iy+1)/rows;
+  cells.push({left,right,bottom,top});
  }
- const at=(x,y)=>{x=Math.round(x);y=Math.round(y);return x<0||y<0||x>=w||y>=h?-1:y*w+x;};
- const raw=[],edge=45;
- for(let y=edge;y<h-edge;y+=8)for(let x=edge;x<w-edge;x+=8){
-  for(let angle=0;angle<12;angle++){
-   const theta=angle*Math.PI/12,dx=Math.cos(theta),dy=Math.sin(theta);
-   let n=0,hits=0,sideGreen=0,contrast=0;
-   for(let t=-32;t<=32;t+=8){
-    const cx=x+t*dx,cy=y+t*dy;
-    const a=at(cx,cy),b=at(cx-10*dy,cy+10*dx),c=at(cx+10*dy,cy-10*dx);
-    if(a<0||b<0||c<0)continue;
-    hits+=soil[a];sideGreen+=green[b]+green[c];
-    contrast+=(light[b]+light[c])/2-light[a];n++;
+ return {cells,clipped:actualW>1350||actualH>1350,
+  total:cells.length,width:Math.round(actualW),height:Math.round(actualH)};
+}
+function pixelToEarth(x,y,box,size){
+ return earth(box.left+(box.right-box.left)*x/size,
+  box.top-(box.top-box.bottom)*y/size);
+}
+function mergeCandidates(items,max=36){
+ items.sort((a,b)=>b.score-a.score);
+ const accepted=[];
+ const meterDistance=(a,b)=>{
+  const dl=(a.lat-b.lat)*MI,dx=(a.lon-b.lon)*MI*Math.cos(a.lat*Math.PI/180);
+  return Math.hypot(dl,dx);
+ };
+ for(const item of items){
+  if(accepted.length>=max)break;
+  const redundant=accepted.some(other=>meterDistance(item.center,other.center)<18);
+  if(!redundant)accepted.push(item);
+ }
+ return accepted;
+}
+async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
+ const imagery=window.SurfaceStrideImagery,trail=window.SurfaceStrideTrailFocus;
+ if(!imagery?.capture||!trail?.screenCandidates)
+  throw Error('Aerial imagery or trail detector unavailable. Refresh the Studio.');
+ let area;
+ if(mapOrCenter?.getBounds)area=mapArea(mapOrCenter);
+ else if(Number.isFinite(mapOrCenter?.lat)){
+  const lon=Number.isFinite(mapOrCenter.lon)?mapOrCenter.lon:mapOrCenter.lng;
+  const p=merc(lon,mapOrCenter.lat),half=270;
+  area={cells:[{left:p.x-half,right:p.x+half,bottom:p.y-half,top:p.y+half}],
+   total:1,clipped:false,width:540,height:540};
+ }else throw Error('No map location to scan');
+ const candidates=[],errors=[],size=448;
+ const boxes=area.cells.slice(0,Math.max(1,Math.min(9,maxPatches)));
+ for(let i=0;i<boxes.length;i++){
+  if(typeof onProgress==='function')onProgress({done:i,total:boxes.length,
+   candidates:candidates.length,errorCount:errors.length,clipped:area.clipped});
+  const box=boxes[i];
+  try{
+   const image=await imagery.capture(box,size,{
+    timeoutPerSource:5600
+   });
+   // More zoomed-out views have lower effective spatial resolution; reject
+   // large low-detail pixels rather than manufacturing tiny trails.
+   const scale=Math.max(box.right-box.left,box.top-box.bottom)/size;
+   if(scale>2.1){errors.push('Pixel scale too low for skinny trails');continue;}
+   const found=trail.screenCandidates(image.raster,{maxCandidates:10});
+   for(const spot of found){
+    const center=pixelToEarth(spot.x,spot.y,box,size);
+    const step=Math.min(20,Math.max(8,30/Math.max(1,scale)));
+    const a=pixelToEarth(spot.x-spot.dx*step,spot.y-spot.dy*step,box,size);
+    const b=pixelToEarth(spot.x+spot.dx*step,spot.y+spot.dy*step,box,size);
+    candidates.push({a,b,center,score:spot.score,
+     kind:'possible trail corridor',source:'Aerial visual suggestion (unverified)',
+     imagerySource:image.source,metersPerPixel:scale,
+     detection:'two-sided vegetation + continuous narrow line'});
    }
-   if(n<8||hits/n<.65||sideGreen/(2*n)<.4||contrast/n<12)continue;
-   raw.push({x,y,dx,dy,angle:theta,score:contrast/n+sideGreen/n*7});
-  }
+  }catch(error){errors.push(error?.message||String(error));}
  }
- raw.sort((a,b)=>b.score-a.score);
- const out=[];
- for(const z of raw){
-  if(out.length>=12)break;
-  if(out.some(p=>Math.hypot(p.x-z.x,p.y-z.y)<39))continue;
-  out.push(z);
- }
+ const out=mergeCandidates(candidates,36);
+ const stats={found:out.length,scanned:boxes.length,failed:errors.length,
+  clipped:area.clipped,source:'NAIP/USGS public aerial imagery'};
+ if(typeof onProgress==='function')onProgress({done:boxes.length,total:boxes.length,
+  candidates:out.length,errorCount:errors.length,clipped:area.clipped});
+ if(!out.length&&errors.length===boxes.length)throw Error('All aerial scan patches failed. '+
+  errors[0]);
+ out.stats=stats;
  return out;
 }
-async function scan(point){
- const scout=window.SurfaceStrideScout?._test;
- if(!scout?.detect||!scout?.merc||!scout?.pixelPoint)throw Error('Aerial module unavailable; refresh the page.');
- const lon=Number.isFinite(point.lon)?point.lon:point.lng;
- if(!Number.isFinite(lon)||!Number.isFinite(point.lat))throw Error('Invalid map center');
- if(point.lat<24||point.lat>50||lon< -125||lon> -66)throw Error('NAIP currently covers the contiguous US only');
- const m=scout.merc(lon,point.lat),half=255,w=640,h=640;
- const box={left:m.x-half,right:m.x+half,bottom:m.y-half,top:m.y+half};
- const query=new URLSearchParams({bbox:[box.left,box.bottom,box.right,box.top].map(v=>v.toFixed(1)).join(','),
-  bboxSR:'3857',imageSR:'3857',size:'640,640',format:'jpg',f:'image'});
- const image=await new Promise((resolve,reject)=>{
-  const img=new Image(),timer=setTimeout(()=>reject(Error('Aerial image timed out')),26000);
-  img.crossOrigin='anonymous';
-  img.onload=()=>{clearTimeout(timer);resolve(img)};
-  img.onerror=()=>{clearTimeout(timer);reject(Error('Image could not load'))};
-  img.src=SERVICE+'?'+query;
- });
- const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
- const ctx=canvas.getContext('2d',{willReadFrequently:true});
- if(!ctx)throw Error('Image pixel analysis unavailable');
- ctx.drawImage(image,0,0,w,h);
- const rgba=ctx.getImageData(0,0,w,h);
- const lines=[
-  ...scout.detect(rgba,w,h).map(x=>({...x,kind:'pale line'})),
-  ...darkLines(rgba,w,h).map(x=>({...x,kind:'dark corridor'}))
- ];
- const out=[];
- for(const z of lines){
-  if(out.length>=22)break;
-  if(out.some(v=>Math.hypot(v.x-z.x,v.y-z.y)<34))continue;
-  const a=scout.pixelPoint(z.x-34*z.dx,z.y-34*z.dy,box,w,h),
-   b=scout.pixelPoint(z.x+34*z.dx,z.y+34*z.dy,box,w,h);
-  out.push({a,b,kind:z.kind,x:z.x,y:z.y,source:'Unverified NAIP image line'});
- }
- return out;
-}
-window.SurfaceStrideAerial={scan,_test:{darkLines}};
+window.SurfaceStrideAerial={scan,_test:{merc,earth,mapArea,pixelToEarth,mergeCandidates}};
 })();
