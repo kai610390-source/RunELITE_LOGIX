@@ -6,35 +6,57 @@
 'use strict';
 function corridor(data,x,y,dx,dy){
  const w=data.width,h=data.height,rgba=data.data,nx=-dy,ny=dx;
- let cLight=0,cLight2=0,sLight=0,cGreen=0,sGreen=0,lGreen=0,rGreen=0,synchronous=0,valid=0;
  const sample=(px,py)=>{
   const ix=Math.round(px),iy=Math.round(py);
   if(ix<2||iy<2||ix>=w-2||iy>=h-2)return null;
   const i=(iy*w+ix)*4,r=rgba[i]/255,g=rgba[i+1]/255,b=rgba[i+2]/255;
   return {l:.2126*r+.7152*g+.0722*b,green:g>r*1.12&&g>b*1.12?1:0};
  };
- for(let t=-24;t<=24;t+=4){
-  const px=x+dx*t,py=y+dy*t;
-  const c=sample(px,py),l=sample(px+nx*13,py+ny*13),r=sample(px-nx*13,py-ny*13);
-  if(!c||!l||!r)continue;
-  cLight+=c.l;cLight2+=c.l*c.l;sLight+=(l.l+r.l)/2;
-  cGreen+=c.green;sGreen+=(l.green+r.green)/2;
-  lGreen+=l.green;rGreen+=r.green;
-  if(l.green&&r.green&&!c.green)synchronous++;
-  valid++;
+ // Different pixel widths can reveal fine gravel/dirt strips or slightly
+ // wider natural paths, including those with bare rather than green flanks.
+ let best=null;
+ for(const width of [7,14]){
+  let cLight=0,c2=0,flank=0,cGreen=0,sGreen=0,vegTogether=0;
+  let valid=0,twoSides=0,positive=0,negative=0,sideDiff=0;
+  for(let t=-24;t<=24;t+=4){
+   const px=x+dx*t,py=y+dy*t;
+   const c=sample(px,py),l=sample(px+nx*width,py+ny*width),r=sample(px-nx*width,py-ny*width);
+   if(!c||!l||!r)continue;
+   const dl=c.l-l.l,dr=c.l-r.l;
+   if(Math.abs(dl)>.065&&Math.abs(dr)>.065&&dl*dr>0){
+    twoSides++;
+    if(dl>0)positive++;else negative++;
+   }
+   sideDiff+=Math.abs(l.l-r.l);
+   cLight+=c.l;c2+=c.l*c.l;flank+=(l.l+r.l)/2;
+   cGreen+=c.green;sGreen+=(l.green+r.green)/2;
+   if(l.green&&r.green&&!c.green)vegTogether++;
+   valid++;
+  }
+  if(valid<10)continue;
+  const contrast=Math.abs(cLight-flank)/valid;
+  const greenContrast=(sGreen-cGreen)/valid;
+  const together=vegTogether/valid;
+  const centerStd=Math.sqrt(Math.max(0,c2/valid-(cLight/valid)**2));
+  const bilateral=twoSides/valid;
+  const consistency=Math.max(positive,negative)/valid;
+  const symmetry=1-Math.min(1,sideDiff/valid/.19);
+  // Green-flanked corridor OR narrow uniform line on both sides.
+  // Building edges normally have contrast on only one side;
+  // tree texture doesn't maintain a continuous two-sided stripe.
+  const vegetated=contrast>.068&&greenContrast>.17&&together>.49&&centerStd<.15;
+  const openLine=contrast>.105&&bilateral>.68&&consistency>.67&&
+   symmetry>.45&&centerStd<.085;
+  const passes=vegetated||openLine;
+  const score=contrast*2.1+Math.max(0,greenContrast)*.72+
+   (openLine?bilateral*.19:0)+symmetry*.08;
+  const result={passes,score,contrast,greenContrast,
+   bilateral,consistency,symmetry,centerStd,vegetated,openLine,width};
+  if(!best||((result.passes?1:0)+result.score)>
+             ((best.passes?1:0)+best.score))best=result;
+  if(vegetated&&score>.55)break;
  }
- if(valid<10)return {passes:false,score:-1,contrast:0,greenContrast:0};
- const contrast=Math.abs(cLight-sLight)/valid;
- const greenContrast=(sGreen-cGreen)/valid;
- const together=synchronous/valid;
- const centerStd=Math.sqrt(Math.max(0,cLight2/valid-(cLight/valid)**2));
- const brightCenter=(cLight-sLight)/valid;
- // Require linear contrast with vegetation flanking the corridor,
- // or strong contrast plus a ground-like center. This rejects uniform roofs.
- const passes=contrast>.07&&greenContrast>.17&&together>.53&&centerStd<.15;
- const score=contrast*2.1+Math.max(0,greenContrast)*.8+
-   Math.max(0,brightCenter)*.2;
- return {passes,score,contrast,greenContrast,brightCenter,together,centerStd};
+ return best||{passes:false,score:-1,contrast:0,greenContrast:0};
 }
 function unitDirection(dir){
  if(!dir)return {x:0,y:1};
