@@ -8,6 +8,7 @@
 const R=6378137,LABELS=['gravel','dirt','grass','paved','unknown'];
 const TRAIN='surfacestride.studio.vision.examples.v1';
 const REVIEWS='surfacestride.studio.vision.reviewedSegments.v1';
+const CONNECTORS='surfacestride.studio.vision.confirmedConnectors.v1';
 const SERVICE='https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage';
 function get(k,fallback){
  try{const data=JSON.parse(localStorage.getItem(k)||'null');
@@ -22,6 +23,8 @@ if(!Array.isArray(examples))examples=[];
 examples=examples.filter(x=>LABELS.includes(x.label)&&Array.isArray(x.vector)&&x.vector.length===24).slice(-350);
 let reviews=get(REVIEWS,{});
 if(Array.isArray(reviews)||!reviews||typeof reviews!=='object')reviews={};
+let connectors=get(CONNECTORS,[]);
+if(!Array.isArray(connectors))connectors=[];
 function surfaceKey(segment){
  if(segment?.segmentKey)return segment.segmentKey;
  if(Number.isFinite(Number(segment?.id))&&Number.isFinite(Number(segment?.nodeA))&&Number.isFinite(Number(segment?.nodeB))){
@@ -115,6 +118,25 @@ function review(segment,label){
 }
 function getReviews(){return {...reviews};}
 function reviewedCount(){return Object.keys(reviews).length;}
+function getConnectors(){return connectors.slice();}
+function saveConnector(points,label){
+ if(!['gravel','dirt'].includes(label))throw Error('Connector must have a confirmed gravel or dirt label.');
+ if(!Array.isArray(points)||points.length<2||points.length>100)throw Error('Trace 2–100 trail points.');
+ const coords=points.map(p=>[Number(p.lat),Number(p.lon)]);
+ if(!coords.every(p=>p.every(Number.isFinite)&&Math.abs(p[0])<=85&&Math.abs(p[1])<=180))
+  throw Error('Invalid traced path coordinates.');
+ let length=0;for(let i=1;i<coords.length;i++){
+  const lat=(coords[i][0]+coords[i-1][0])/2*Math.PI/180;
+  length+=Math.hypot((coords[i][0]-coords[i-1][0])*111195,
+   (coords[i][1]-coords[i-1][1])*111195*Math.cos(lat));
+ }
+ if(length<5||length>2000)throw Error('Review trails between 5 m and 2 km, in smaller sections if needed.');
+ const item={id:'reviewed-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),
+  points:coords,label,confirmed:true,accessReviewed:true,time:Date.now()};
+ const next=connectors.slice(-99).concat([item]);
+ if(!store(CONNECTORS,next))throw Error('Browser storage is unavailable.');
+ connectors=next;return item;
+}
 function removeReview(segment){
  const key=typeof segment==='string'?segment:surfaceKey(segment);
  if(key){delete reviews[key];store(REVIEWS,reviews);}
@@ -163,6 +185,6 @@ async function fromFile(file){
  }finally{URL.revokeObjectURL(url);}
 }
 window.SurfaceStrideVision={capture,fromFile,features,predict,count,addExample,review,getReviews,
- reviewedCount,removeReview,surfaceKey,
+ reviewedCount,removeReview,surfaceKey,getConnectors,saveConnector,
  _test:{merc,materialLabels:LABELS.slice(),clearMemory(){examples=[];reviews={};}}};
 })();
