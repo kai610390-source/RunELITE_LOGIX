@@ -150,7 +150,7 @@ function removeReview(segment){
 function merc(lon,lat){
  return {x:R*lon*Math.PI/180,y:R*Math.log(Math.tan(Math.PI/4+Math.max(-85,Math.min(85,lat))*Math.PI/360))};
 }
-async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000}={}){
+async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGround=false}={}){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>85||Math.abs(lon)>180)
   throw Error('Invalid patch center');
  if(lat<24||lat>50||lon< -125||lon> -66)throw Error('NAIP is currently supported in the contiguous US only.');
@@ -185,9 +185,22 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000}={}){
  let data;
  try{data=ctx.getImageData(0,0,px,px);}
  catch(err){throw Error('Your browser blocked aerial-image pixel access. Upload an authorized image to continue training.');}
- const vector=features(data);
- return {vector,preview:canvas.toDataURL('image/jpeg',.91),lat,lon,source:'NAIP',
-  patchMeters:half*2,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.'};
+ const picker=window.SurfaceStrideGroundPicker;
+ if(preferOpenGround&&!picker?.choose)throw Error('Open-ground scanner did not load. Refresh the trainer.');
+ const spot=preferOpenGround?picker.choose(data):null;
+ if(preferOpenGround&&!spot){
+  const err=new Error('This area is too tree-covered or ambiguous for a reliable clear-ground target.');
+  err.code='NO_OPEN_GROUND';throw err;
+ }
+ const sample={vector:spot?picker.focus(data,spot.x,spot.y):features(data),
+  preview:canvas.toDataURL('image/jpeg',.91),lat,lon,source:'NAIP',
+  patchMeters:half*2,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.',
+  targetX:spot?spot.x/px:.5,targetY:spot?spot.y/px:.5,
+  selection:spot?'candidate-open-ground':'original-center',
+  _raster:preferOpenGround?data:null,
+  _mercatorBounds:preferOpenGround?{left:p.x-half,right:p.x+half,top:p.y+half,bottom:p.y-half}:null};
+ if(spot)picker.place(sample,spot.x/px,spot.y/px);
+ return sample;
 }
 async function fromFile(file){
  if(!file||!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>9000000)
