@@ -6,12 +6,13 @@ const TAGS=window.SurfaceStrideSurfaceTags;
 const SHARE=window.SurfaceStrideShare;
 const WALK=window.SurfaceStrideWalking;
 const $=id=>document.getElementById(id);
-const COLORS={grass:'#50d487',dirt:'#b7825a',gravel:'#efb061',paved:'#9db6b0',track:'#d08cbd',unknown:'#c6cbd0'};
+const COLORS={grass:'#50d487',dirt:'#b7825a',gravel:'#efb061',paved:'#9db6b0',track:'#d08cbd',unknown:'#c6cbd0',possible:'#f7da74'};
 const KM=1.609344,MI=1609.344;
 const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,preference:'soft',
  terrain:'any',quiet:true,waypoints:[],straight:false,reroll:0,working:false,
- zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,
- routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,gravelSegments:[],
+ zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
+ aerialOn:false,aerialCandidates:[],aerialBusy:false,
+ routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
  bottomOpen:false,bottomTab:'elevation',saved:[]};
 let snackbarTimer=0,manualTimer=0,lastRouteRequest=0;
 function message(text,ms=4200){
@@ -42,6 +43,7 @@ function setupMap(){
  st.routeLayer=L.layerGroup().addTo(map);
  st.markerLayer=L.layerGroup().addTo(map);
  st.gravelLayer=L.layerGroup().addTo(map);
+ st.aerialLayer=L.layerGroup().addTo(map);
  st.zoneLayer=L.layerGroup().addTo(map);
  L.control.zoom({position:'bottomright'}).addTo(map);
  map.on('click',onMapClick);
@@ -64,7 +66,8 @@ function onMapClick(e){
  }
  if(st.mode!=='draw')return;
  if(st.waypoints.length>=16){message('Use at most 16 control points.');return;}
- st.waypoints.push({lat:e.latlng.lat,lon:e.latlng.lng});
+ st.waypoints.push({lat:e.latlng.lat,lon:e.latlng.lng,
+  manualToHere:st.traceOn&&st.waypoints.length>0});
  drawMarkers();
  if(st.waypoints.length>=2)deferManual();
  else status('First waypoint placed. Click another point to draw a route.');
@@ -172,6 +175,10 @@ function drawRoute(preserveView=false){
   L.polyline(span.points,{color,weight:span.evidence==='tagged'?4.7:3.4,
    opacity:span.evidence==='tagged'?1:.83,lineJoin:'round',interactive:false}).addTo(all);
  }
+ for(const sec of r.manualSections||[]){
+  L.polyline([sec.a,sec.b],{color:'#ffd47b',weight:5,opacity:1,dashArray:'5 7',
+   interactive:false}).addTo(all);
+ }
  all.addTo(st.routeLayer);
  if(!preserveView){
   const bounds=L.latLngBounds(r.coordinates);
@@ -195,7 +202,8 @@ function surfaceSummary(){
  }
  $('surfaceConfidence').textContent=(r.surface_data_status==='scanned'?
   (r.tagged_percent||0)+'% OSM-tagged · '+(r.inferred_percent||0)+'% inferred · '+(r.unknown_percent||0)+'% unknown':
-  'Surface lookup pending or unavailable. Unknown does not mean paved.');
+  'Surface lookup pending or unavailable. Unknown does not mean paved.')+
+  ((r.manualSections||[]).length?' · Dashed gold = reviewed sketch, not a verified surface.':'');
 }
 function updateStats(){
  const r=st.route;if(!r)return;
@@ -314,15 +322,17 @@ async function autoGenerate(){
  }catch(err){status('Could not generate route: '+(err?.message||err));message('Route unavailable. Try another area or draw waypoints.',6500);}
  finally{setBusy(false);}
 }
-function deferManual(){clearTimeout(manualTimer);manualTimer=setTimeout(manualBuild,550);}
+function deferManual(){lastRouteRequest++;clearTimeout(manualTimer);manualTimer=setTimeout(manualBuild,550);}
 async function manualBuild(){
- if(st.mode!=='draw'||st.waypoints.length<2||st.working)return;
- const copy=st.waypoints.map(x=>({...x})),request=++lastRouteRequest;
- setBusy(true,st.straight?'Drawing manual line…':'Snapping route…');
+ if(st.mode!=='draw'||st.waypoints.length<2)return;
+ if(st.working){clearTimeout(manualTimer);manualTimer=setTimeout(manualBuild,550);return;}
+ const copy=st.waypoints.map(x=>({...x})),request=lastRouteRequest;
+ const hybrid=!st.straight&&copy.some(x=>x.manualToHere);
+ setBusy(true,st.straight?'Drawing manual line…':hybrid?'Connecting small trails…':'Snapping route…');
  try{
-  const route=st.straight?E.directRoute(copy):await E.snapRoute(copy);
+  const route=st.straight?E.directRoute(copy):hybrid?await E.hybridRoute(copy):await E.snapRoute(copy);
   if(request!==lastRouteRequest||st.mode!=='draw')return;
-  route.title=st.straight?'Off-road sketch':'Custom running route';
+  route.title=st.straight?'Off-road sketch':hybrid?'Connected small trails':'Custom running route';
   route.mode='point-to-point';
   showRoute(route,{preserveView:true});
   status('Route edited. Drag a marker to reroute; right-click to delete a waypoint.');
@@ -341,7 +351,10 @@ function undo(){
 }
 function reverseRoute(){
  if(st.mode==='draw'&&st.waypoints.length>=2){
-  st.waypoints.reverse();drawMarkers();deferManual();return;
+  const oldFlags=st.waypoints.map(p=>!!p.manualToHere);
+  st.waypoints.reverse();
+  st.waypoints.forEach((p,i)=>{p.manualToHere=i>0?oldFlags[oldFlags.length-i]:false;});
+  drawMarkers();deferManual();return;
  }
  if(st.route){
   const source=st.route;
