@@ -527,6 +527,7 @@ function toggleTrace(){
  }else status('Trail tracing ended. New waypoint legs can follow the mapped walking network.');
  $('traceTrailBtn').textContent=st.traceOn?'✓ Finish tracing small trail':'✎ Trace a path I can see';
  $('traceTrailBtn').classList.toggle('active',st.traceOn);
+ $('traceMapBtn').classList.toggle('active',st.traceOn);
 }
 async function showWeather(){
  $('weatherCard').hidden=false;$('weatherInfo').textContent='Loading current conditions…';
@@ -704,6 +705,7 @@ function wires(){
  $('aerialScanBtn').addEventListener('click',scanAerial);
  $('clearAerialBtn').addEventListener('click',clearAerial);
  $('traceTrailBtn').addEventListener('click',toggleTrace);
+ $('traceMapBtn').addEventListener('click',toggleTrace);
  $('scanGravelBtn').addEventListener('click',()=>toggleGravel(true));
  $('clearGravelBtn').addEventListener('click',()=>toggleGravel());
  $('zoneBtn').addEventListener('click',armZone);$('clearZoneBtn').addEventListener('click',clearZone);

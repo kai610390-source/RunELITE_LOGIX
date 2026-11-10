@@ -105,6 +105,7 @@
         <button class="map-tool active" id="labelsBtn" title="Show/hide street and place names">⌖ <span>Labels</span></button>
         <button class="map-tool" id="gravelBtn" title="Show mapped narrow trails, including unknown surfaces">▤ <span>Small trails</span></button>
         <button class="map-tool" id="aerialBtn" title="Scan public aerial imagery for possible unmapped trail features">✧ <span>Aerial scout</span></button>
+        <button class="map-tool" id="traceMapBtn" title="Start or stop tracing a tiny visible trail">✎ <span>Trace trail</span></button>
         <button class="map-tool" id="zoneBtn" title="Use map center as one corner, then click opposite corner to define an area">⬡ <span>Route zone</span></button>
         <button class="map-tool" id="weatherBtn" title="Show current weather conditions">☁ <span>Weather</span></button>
         <button class="map-tool" id="streetBtn" title="Inspect at Instant Street View">↗ <span>Street View</span></button>
@@ -156,11 +157,12 @@
   <button id="closeHelp2" class="primary-cta">Start exploring ↗</button>
 </dialog>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="../surface-tags.js?build=studio2"></script>
+<script src="../surface-tags.js?build=studio3"></script>
 <script src="../foot-router.js?build=studio2"></script>
-<script src="../scout.js?build=studio2"></script>
+<script src="../scout.js?build=studio3"></script>
+<script src="./aerial.js?build=studio3"></script>
 <script src="../share-route.js?build=studio1"></script>
-<script src="./engine.js?build=studio2"></script>
-<script src="./app.js?build=studio2"></script>
+<script src="./engine.js?build=studio3"></script>
+<script src="./app.js?build=studio3"></script>
 </body>
 </html>
