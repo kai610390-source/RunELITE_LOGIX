@@ -534,57 +534,72 @@ async function loadVisible(center,miles,{bounds=null,fetcher=fetch,timeout=14500
  if(elements.length<4)throw Error('No usable mapped path data in the visible area.');
  return {elements,region,loaded:success.length,missing:failed.length,total};
 }
-function chooseNetworkWalk(graph,networks,center,target,shape,variant=0){
+function networkWalks(graph,networks,center,target,shape){
  const candidates=[];
  for(const comp of networks){
   if(comp.totalLength<25)continue;
-  let closest=null,closestDist=Infinity;
-  let farthest=null,farthestDist=-1;
-  for(const id of comp.nodes){
-   const p=graph.nodes.get(id),distance=meters(center,p);
-   if(distance<closestDist){closestDist=distance;closest=id;}
-   if(distance>farthestDist){farthestDist=distance;farthest=id;}
+  const members=comp.nodes.slice();
+  const points=members.map(id=>({id,p:graph.nodes.get(id)})).filter(x=>x.p);
+  if(!points.length)continue;
+  const byDist=points.slice().sort((a,b)=>meters(a.p,center)-meters(b.p,center));
+  const anchors=[byDist[0],byDist[byDist.length-1]];
+  const extrema=[
+   points.reduce((a,b)=>a.p.lat<b.p.lat?a:b),
+   points.reduce((a,b)=>a.p.lat>b.p.lat?a:b),
+   points.reduce((a,b)=>a.p.lon<b.p.lon?a:b),
+   points.reduce((a,b)=>a.p.lon>b.p.lon?a:b)
+  ];
+  anchors.push(...extrema);
+  const distinct=new Set();
+  for(const anchor of anchors){
+   if(!anchor||distinct.has(anchor.id))continue;
+   distinct.add(anchor.id);
+   const dist=meters(anchor.p,center);
+   candidates.push({component:comp,start:anchor.id,distance:dist,
+    extent:comp.totalLength});
   }
-  if(closest!==null)candidates.push({component:comp,start:closest,distance:closestDist});
-  if(farthest!==null&&farthest!==closest&&comp.totalLength>target*.45)
-   candidates.push({component:comp,start:farthest,distance:farthestDist});
  }
- if(!candidates.length)return null;
- // Sample major separate networks even when they are not near map center.
- // Keep a few smaller local components in the pool for short distances.
+ if(!candidates.length)return [];
  candidates.sort((a,b)=>{
-  const ka=Math.min(a.component.totalLength,target*1.8),kb=Math.min(b.component.totalLength,target*1.8);
+  const ka=Math.min(a.extent,target*1.8),kb=Math.min(b.extent,target*1.8);
   return (kb-b.distance*.13)-(ka-a.distance*.13);
  });
- const shortlist=candidates.slice(0,12);
+ // Preserve representation from several distinct soft systems, not just
+ // six extreme starts on the biggest network.
+ const shortlist=[],fromComponent=new Map();
+ for(const entry of candidates){
+  if(shortlist.length>=22)break;
+  const group=entry.component;
+  const used=fromComponent.get(group)||0;
+  if(used>=4)continue;
+  shortlist.push(entry);fromComponent.set(group,used+1);
+ }
  const alternatives=[];
- for(let i=0;i<shortlist.length;i++){
-  const entry=shortlist[(i+(variant%shortlist.length))%shortlist.length];
-  const possible=[];
+ for(const entry of shortlist){
   try{
    if(shape==='loop'){
     const loop=findLoop(graph,entry.start,target);
-    if(loop)possible.push({walk:loop.walk,stem:loop.stem,hasCycle:true,shape:'loop'});
+    if(loop)alternatives.push({...loop,shape:'loop',start:entry.start,
+     component:entry.component,offset:entry.distance});
    }
    const basic=outBack(graph,entry.start,target,shape==='loop'?'out-and-back':shape);
-   possible.push({...basic,shape:shape==='loop'?'out-and-back':shape});
-  }catch(e){/* Try another connected trail network. */}
-  for(const choice of possible){
-   if(!choice.walk?.edges?.length)continue;
-   const actual=choice.walk.edges.reduce((acc,e)=>acc+e.length,0);
-   const error=Math.abs(actual-target)/Math.max(target,1);
-   const mismatch=shape==='loop'&&!choice.hasCycle?.20:0;
-   const offsetPenalty=entry.distance/30000;
-   const score=error+mismatch+offsetPenalty;
-   alternatives.push({...choice,score,start:entry.start,
-    component:entry.component,offset:entry.distance,actual});
-  }
+   alternatives.push({...basic,shape:shape==='loop'?'out-and-back':shape,
+    start:entry.start,component:entry.component,offset:entry.distance});
+  }catch(err){/* A disconnected branch might not provide the requested shape. */}
  }
- if(!alternatives.length)return null;
- alternatives.sort((a,b)=>a.score-b.score);
- const best=alternatives[0];
- const nearBest=alternatives.filter(c=>c.score<=best.score+.32);
- return nearBest[(Math.max(0,Math.floor(variant))%Math.min(4,nearBest.length))]||best;
+ for(const item of alternatives){
+  item.actual=item.walk.edges.reduce((acc,e)=>acc+e.length,0);
+  const error=Math.abs(item.actual-target)/Math.max(target,1);
+  item.score=error+(shape==='loop'&&!item.hasCycle?.20:0)+item.offset/30000;
+ }
+ return alternatives.sort((a,b)=>a.score-b.score);
+}
+function chooseNetworkWalk(graph,networks,center,target,shape,variant=0){
+ const sorted=networkWalks(graph,networks,center,target,shape);
+ if(!sorted.length)return null;
+ const best=sorted[0];
+ const nearBest=sorted.filter(c=>c.score<=best.score+.32);
+ return nearBest[Math.max(0,Math.floor(variant))%Math.min(4,nearBest.length)]||best;
 }
 function buildFromData(elements,options,reviews={},connectors=[]){
  const {center,material:preferred='both',miles=5,shape='loop',
@@ -623,6 +638,69 @@ function buildFromData(elements,options,reviews={},connectors=[]){
   tagged:graph.edges.filter(e=>e.evidence==='osm').length,
   reviewed:graph.edges.filter(e=>e.evidence==='reviewed').length,
   qualifyingNetworks,scan:scanMeta};
+}
+function buildOptionsFromData(elements,options,reviews={},connectors=[]){
+ const {center,material:preferred='both',miles=5,shape='loop',
+  allowRoadLinks=true,maxRoadMeters=240,maxOptions=4,scanMeta=null}=options;
+ const graph=graphFromElements(elements,reviews,preferred,connectors);
+ const originalNetworks=components(graph).filter(c=>c.totalLength>=25).length;
+ if(allowRoadLinks)bridgeNetworks(graph,elements,{maxRoadMeters});
+ const networks=components(graph);
+ const alternatives=networkWalks(graph,networks,center,MI*miles,shape);
+ const routes=[];
+ for(const choice of alternatives){
+  if(routes.length>=Math.min(5,Math.max(1,maxOptions)))break;
+  if(!choice.walk?.edges?.length)continue;
+  const total=choice.walk.edges.reduce((n,e)=>n+e.length,0);
+  const soft=choice.walk.edges.filter(e=>e.material==='gravel'||e.material==='dirt')
+   .reduce((n,e)=>n+e.length,0);
+  const road=total-soft;
+  if(soft<75||road/total>.22||road>Math.min(1050,MI*miles*.23))continue;
+  // Avoid routes that repeat the same edge set under a different name.
+  const softEdges=new Set(choice.walk.edges.filter(e=>e.evidence!=='road').map(e=>e.id));
+  if(routes.some(entry=>{
+   let intersection=0;
+   for(const key of softEdges)if(entry.edgeKeys.has(key))intersection++;
+   const overlap=intersection/Math.max(1,Math.min(softEdges.size,entry.edgeKeys.size));
+   return overlap>.79&&Math.abs(total-entry.total)<MI*.65;
+  }))continue;
+  const route=routeFromWalk(graph,choice.walk,
+   choice.hasCycle?'Soft-surface loop':choice.shape==='out-and-back'?
+    'Soft-surface out & back':'Soft-surface route',
+   choice.shape,MI*miles,choice.stem);
+  const softPct=(route.soft_percent||0)/100,roadPct=(route.road_percent||0)/100;
+  const deviation=Math.abs(route.distance_miles-miles)/Math.max(1,miles);
+  const shapePenalty=shape==='loop'&&!choice.hasCycle?.18:0;
+  const score=deviation*1.6+roadPct*2.1+
+   (route.surface_percent.unknown||0)/100*.55+
+   shapePenalty+choice.offset/45000;
+  route.trail_ways_count=route.trail_ways_count||0;
+  route.networks_found=originalNetworks;
+  route.road_link_limit_m=Math.min(300,Math.max(20,maxRoadMeters));
+  route.scanned_tiles=scanMeta?.loaded||1;
+  route.softPriority=true;
+  route.requested_miles=miles;
+  const note=
+   route.soft_percent.toFixed(1)+'% mapped/reviewed gravel or dirt · '+
+   route.road_miles.toFixed(2)+' mi short mapped road/footway connectors'+
+   (route.surface_percent.unknown?' (some road surfaces not tagged)':'')+
+   '. Trail-network geometry comes from OSM or confirmed sketches; verify access and surfaces before running.'+
+   (scanMeta?.missing?' '+scanMeta.missing+' map regions were unavailable.':'')+
+   (scanMeta?.region?.clipped?' Search clipped to 7.5 km; zoom in to explore other areas.':'');
+  route.strictNote=note;
+  routes.push({route,note,edgeKeys:softEdges,total,score});
+ }
+ routes.sort((a,b)=>a.score-b.score);
+ routes.forEach((item,i)=>{
+  item.route.title='Option '+(i+1)+' · '+item.route.title;
+  item.route.optionIndex=i;
+ });
+ return {options:routes.map(({route,note,score})=>({route,note,score})),
+  graph,originalNetworks,roadConnectors:graph.roadConnectors||0,
+  connectedNetworks:networks.filter(c=>c.totalLength>=25).length,scan:scanMeta,
+  note:routes.length?routes.length+' distinct soft-surface choices found. '+
+   (graph.roadConnectors||0)+' mapped short road connectors considered.':
+   'No viable predominantly gravel/dirt route was found here; try zooming out or allowing more mapped connectors.'};
 }
 function routeBetweenData(elements,waypoints,{material:preferred='both',reviews={},connectors=[]}={}){
  if(!Array.isArray(waypoints)||waypoints.length<2||waypoints.length>16)throw Error('Use 2–16 map points.');
@@ -672,7 +750,21 @@ async function plan(options,{fetcher=fetch,reviews={},connectors=[],onProgress=n
   variant:options.variant||0,scanMeta:scan
  },reviews,connectors);
 }
-window.SurfaceStrideStrictSoft={plan,planBetween,buildFromData,_test:{scanRegion,loadVisible,chooseNetworkWalk,routeBetweenData,
+async function planOptions(options,{fetcher=fetch,reviews={},connectors=[],onProgress=null}={}){
+ const {lat,lon,miles,material:preferred='both'}=options;
+ if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(miles)||
+  miles<.2||miles>25)throw Error('Pick a valid map location and route length.');
+ const scan=await loadVisible({lat,lon},miles,{
+  bounds:options.bounds||null,fetcher,onProgress
+ });
+ return buildOptionsFromData(scan.elements,{
+  center:{lat,lon},miles,material:preferred,shape:options.shape,
+  allowRoadLinks:options.allowRoadLinks!==false,
+  maxRoadMeters:options.maxRoadMeters||240,
+  maxOptions:options.maxOptions||4,scanMeta:scan
+ },reviews,connectors);
+}
+window.SurfaceStrideStrictSoft={plan,planOptions,planBetween,buildFromData,buildOptionsFromData,_test:{scanRegion,loadVisible,bridgeNetworks,networkWalks,chooseNetworkWalk,routeBetweenData,
   graphFromElements,components,shortest,pathTo,findLoop,outBack,material,keyFor,routeFromWalk,load,access
 }};
 })();
