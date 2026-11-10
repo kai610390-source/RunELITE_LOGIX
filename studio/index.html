@@ -4,18 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Microtrails V3</title>
+<title>SurfaceStride Studio | Surface Lab V4</title>
+<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V4 -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<link rel="stylesheet" href="./styles.css?v=3">
+<link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
 <div class="shell">
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>MICROTRAIL V3</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>SURFACE LAB V4</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
@@ -56,7 +57,16 @@
             <button class="surface-pick" data-preference="paved"><i style="background:#b8c7c0"></i>Paved</button>
             <button class="surface-pick" data-preference="mixed"><i style="background:linear-gradient(45deg,#5ed98c 50%,#f5bb70 50%)"></i>Mixed</button>
           </div>
-          <p class="hint">Walking routing follows public routing data. Surface tags are checked separately; this preference is a goal, not a guarantee.</p>
+          <p class="hint">Walking routing can use pavement. Switch on strict trail routing to permit only connected gravel/dirt segments.</p>
+          <div class="strict-surface-panel">
+            <label class="toggle-row strict-toggle"><span><b>Strict gravel / dirt routing</b><small>Never add a paved road to reach your mileage</small></span><input id="strictSoftToggle" type="checkbox" checked><span class="switch"></span></label>
+            <div class="strict-type-row" aria-label="Allowed surface for strict routing">
+              <button type="button" data-soft-material="both" class="active">Gravel + Dirt</button>
+              <button type="button" data-soft-material="gravel">Gravel only</button>
+              <button type="button" data-soft-material="dirt">Dirt only</button>
+            </div>
+            <p class="hint" id="strictSoftNote">Connected paths must have gravel/dirt tags or your confirmed surface label. If none reach the target distance, the app will show the shorter route and explain why.</p>
+          </div>
           <div class="section-label"><span>04</span> Elevation & terrain</div>
           <div class="pills"><button class="pill" data-terrain="flat">Flat</button><button class="pill active" data-terrain="any">Any hills</button><button class="pill" data-terrain="hilly">Hilly</button></div>
           <label class="toggle-row"><span><b>Avoid busy roads</b><small>Preference only on public walking router</small></span><input id="quietToggle" type="checkbox" checked><span class="switch"></span></label>
@@ -96,6 +106,28 @@
           <button class="secondary-wide" id="traceTrailBtn">✎ Trace a path I can see</button>
           <button class="secondary-wide" id="clearAerialBtn">Hide aerial suggestions</button>
           <p class="hint">Inspect imagery, fences, access, and route continuity before adding a segment. Satellite imagery cannot establish whether land is public or a path is passable.</p>
+          <div class="section-label"><span>◎</span> Train surface recognition</div>
+          <p class="hint">Zoom into a trail with public NAIP imagery, then label what you know: gravel, dirt, grass, paved road or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing.</p>
+          <button class="secondary-wide" id="trainMapCenterBtn">Inspect surface at map center ↗</button>
+          <button class="secondary-wide" id="trainUploadBtn">Add my own licensed training image</button>
+          <input id="trainFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <div class="trainer-box" id="trainerBox" hidden>
+            <img id="trainerImage" alt="Zoomed-in public NAIP surface patch for labeling" />
+            <p class="trainer-context" id="trainerContext"></p>
+            <div id="trainerPrediction" class="trainer-prediction">Prediction will appear after sufficient labels.</div>
+            <div class="trainer-label-grid">
+              <button data-training-label="gravel">Gravel</button>
+              <button data-training-label="dirt">Dirt</button>
+              <button data-training-label="grass">Grass</button>
+              <button data-training-label="paved">Paved road</button>
+              <button data-training-label="unknown">Unknown</button>
+            </div>
+            <p class="hint" id="trainerStatus">Click the true surface type to teach the classifier.</p>
+          </div>
+          <div id="trainerCounts" class="trainer-counts">No labeled examples yet.</div>
+          <button class="secondary-wide" id="trainBatchBtn">Analyze up to 6 nearby unknown paths</button>
+          <p class="hint" id="batchStatus">Batch classifications are suggestions, never verified surfaces. Click a suggested trail and confirm its surface to add it to strict routing.</p>
+          <p class="hint">Training images should be publicly reusable or your own. Do not upload or extract Google Maps imagery for model training.</p>
         </section>
       </div>
       <div class="sidebar-foot"><span class="foot-dot"></span> Independent, free route studio <span>·</span> Built with open data</div>
@@ -107,6 +139,7 @@
         <button class="map-tool" id="gravelBtn" title="Show mapped narrow trails, including unknown surfaces">▤ <span>Small trails</span></button>
         <button class="map-tool" id="aerialBtn" title="Scan public aerial imagery for possible unmapped trail features">✧ <span>Aerial scout</span></button>
         <button class="map-tool" id="traceMapBtn" title="Start or stop tracing a tiny visible trail">✎ <span>Trace trail</span></button>
+        <button class="map-tool" id="trainMapBtn" title="Zoom into a surface and train its classification">◎ <span>Train surfaces</span></button>
         <button class="map-tool" id="zoneBtn" title="Use map center as one corner, then click opposite corner to define an area">⬡ <span>Route zone</span></button>
         <button class="map-tool" id="weatherBtn" title="Show current weather conditions">☁ <span>Weather</span></button>
         <button class="map-tool" id="streetBtn" title="Inspect at Instant Street View">↗ <span>Street View</span></button>
@@ -151,6 +184,8 @@
   <h2>Build a route, not a subscription.</h2>
   <p><b>Generate:</b> Move the satellite map to an area, choose distance, and select Generate. You can regenerate alternatives.</p>
   <p><b>Draw:</b> Choose Draw waypoints and click the map. Drag markers to reshape, right-click to remove, or use Undo and Reverse. Routes snap to mapped walking paths; manual off-road mode is available.</p>
+  <p><b>Strict gravel/dirt:</b> Build from connected trail geometry carrying OSM gravel/dirt tags or individually confirmed surfaces. If a continuous full-length route cannot be assembled, the app shows a shortfall instead of inserting paved roads.</p>
+  <p><b>Surface trainer:</b> Inspect high-resolution NAIP crops around trails and teach a browser-local color/texture classifier by labeling examples. Predictions remain estimates; manual review is required before strict routing uses a previously unknown segment. Google Maps imagery is not used for model training.</p>
   <p><b>Discover small trails:</b> Reveal even unnamed paths with missing surface tags (yellow dashed). Click a path and choose Add to route to keep its shape as a manually reviewed segment.</p>
   <p><b>Aerial Scout:</b> Search NAIP aerial photos for possible thin paths. This experimental feature can mistake roofs, drainage, and field lines for trails. Review imagery and access before using it.</p>
   <p><b>COROS:</b> Download or share the GPX. Open it with the COROS app on your phone, save to your route library, then sync to your watch.</p>
@@ -158,12 +193,14 @@
   <button id="closeHelp2" class="primary-cta">Start exploring ↗</button>
 </dialog>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="../surface-tags.js?build=studio3"></script>
+<script src="../surface-tags.js?build=studio4"></script>
 <script src="../foot-router.js?build=studio2"></script>
 <script src="../scout.js?build=studio3"></script>
 <script src="./aerial.js?build=studio3"></script>
 <script src="../share-route.js?build=studio1"></script>
-<script src="./engine.js?build=studio3"></script>
-<script src="./app.js?build=studio3"></script>
+<script src="./engine.js?build=studio4"></script>
+<script src="./strict-soft.js?build=studio4"></script>
+<script src="./surface-vision.js?build=studio4"></script>
+<script src="./app.js?build=studio4"></script>
 </body>
 </html>
