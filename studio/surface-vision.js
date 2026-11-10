@@ -157,19 +157,34 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000}={}){
  const p=merc(lon,lat),half=Math.max(10,Math.min(65,spanMeters/2));
  const q=new URLSearchParams({bbox:[p.x-half,p.y-half,p.x+half,p.y+half].map(x=>x.toFixed(2)).join(','),
   bboxSR:'3857',imageSR:'3857',size:px+','+px,format:'jpg',f:'image'});
- const url=SERVICE+'?'+q;
- const img=await new Promise((resolve,reject)=>{
-  const image=new Image(),timer=setTimeout(()=>reject(Error('NAIP image request timed out')),timeout);
-  image.crossOrigin='anonymous';
-  image.onload=()=>{clearTimeout(timer);resolve(image);};
-  image.onerror=()=>{clearTimeout(timer);reject(Error('NAIP image blocked or unavailable'));};
-  image.src=url;
- });
+ const sources=[
+  SERVICE+'?'+q,
+  'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage?'+q
+ ];
+ let img=null,errors=[];
+ for(const url of sources){
+  try{
+   img=await new Promise((resolve,reject)=>{
+    const image=new Image();
+    const timer=setTimeout(()=>{image.onload=null;image.onerror=null;reject(Error('image service timed out'));},Math.min(timeout,12000));
+    image.crossOrigin='anonymous';
+    image.onload=()=>{clearTimeout(timer);resolve(image);};
+    image.onerror=()=>{clearTimeout(timer);reject(Error('image could not be loaded'));};
+    image.src=url;
+   });
+   break;
+  }catch(err){errors.push(err?.message||String(err));}
+ }
+ if(!img)throw Error('Both public aerial services failed ('+errors.join(', ')+'). You can still train by uploading an authorized photo.');
  const canvas=document.createElement('canvas');canvas.width=px;canvas.height=px;
  const ctx=canvas.getContext('2d',{willReadFrequently:true});
- if(!ctx)throw Error('Image analysis unavailable.');
- ctx.drawImage(img,0,0,px,px);
- const data=ctx.getImageData(0,0,px,px),vector=features(data);
+ if(!ctx)throw Error('Browser cannot analyze image pixels. Try a recent Chrome or Safari version.');
+ try{ctx.drawImage(img,0,0,px,px);}
+ catch(err){throw Error('Aerial image could not be drawn. Try your own image instead.');}
+ let data;
+ try{data=ctx.getImageData(0,0,px,px);}
+ catch(err){throw Error('Your browser blocked aerial-image pixel access. Upload an authorized image to continue training.');}
+ const vector=features(data);
  return {vector,preview:canvas.toDataURL('image/jpeg',.91),lat,lon,source:'NAIP',
   patchMeters:half*2,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.'};
 }
