@@ -105,7 +105,7 @@ function chooseSegment(items){
 async function randomInZone(zone,opts={}){
  const items=await load(zone,opts);
  const choice=chooseSegment(items);
- return choice?{...choice,zone:zone.name||'Mapped trail'}:null;
+ return choice?{...choice,zone:zone.name||'Mapped trail',mappedSegments:items}:null;
 }
 window.SurfaceStrideMappedTrail={randomInZone,_test:{allowed,parseElements,chooseSegment,load,
  cacheCount:()=>cache.size,clear:()=>{cache.clear();failures=0;}}};

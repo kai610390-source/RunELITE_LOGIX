@@ -191,10 +191,29 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGro
  const picker=window.SurfaceStrideGroundPicker;
  if(preferOpenGround&&!picker?.choose)throw Error('Open-ground scanner did not load. Refresh the trainer.');
  const trail=window.SurfaceStrideTrailFocus;
- let spot=null;
- if(trailFirst&&trail){
-  if(trailHint?.trailAnchor)spot=trail.anchored(data,trailHint.direction);
-  if(!spot)spot=trail.imageLine(data);
+ let spot=null,candidates=[];
+ if(trailFirst&&trail?.screenCandidates){
+  const mapped=[];
+  if(Array.isArray(trailHint?.mappedSegments)){
+   const entries=trailHint.mappedSegments.slice(0,850);
+   for(const seg of entries){
+    for(const t of seg.length>80?[.25,.65]:[.5]){
+     const point={lat:seg.a.lat*(1-t)+seg.b.lat*t,
+      lon:seg.a.lon*(1-t)+seg.b.lon*t};
+     const geo=merc(point.lon,point.lat);
+     const x=(geo.x-(p.x-half))/(half*2)*px,
+      y=((p.y+half)-geo.y)/(half*2)*px;
+     if(x<32||y<32||x>px-32||y>px-32)continue;
+     mapped.push({x,y,direction:{lat:seg.b.lat-seg.a.lat,
+      lon:seg.b.lon-seg.a.lon},name:seg.name,weight:seg.confidence});
+    }
+   }
+  }
+  // A wider image can legitimately contain more trails. This is a maximum,
+  // not a promise that every visible line will pass the safety heuristics.
+  const maxCandidates=Math.max(4,Math.min(16,Math.round(3+spanMeters/65)));
+  candidates=trail.screenCandidates(data,{mapped,maxCandidates});
+  spot=candidates[0]||null;
  }
  if(!spot&&preferOpenGround&&!trailFirst)spot=picker.choose(data);
  if(preferOpenGround&&!spot&&!trailFirst){
@@ -210,6 +229,8 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGro
   patchMeters:half*2,imagerySource,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.',
   targetX:spot?spot.x/px:needsClick?null:.5,targetY:spot?spot.y/px:needsClick?null:.5,
   selection:spot?spot.source:needsClick?'manual-needed':'original-center',
+  candidates:candidates.map((c,i)=>({x:c.x,y:c.y,score:c.score,
+   source:c.source,name:c.name||null,rank:i+1,done:false})),
   mappedTrailName:trailHint?.trailAnchor?trailHint.trailName:null,
   _raster:preferOpenGround?data:null,
   _mercatorBounds:preferOpenGround?{left:p.x-half,right:p.x+half,top:p.y+half,bottom:p.y-half}:null};
