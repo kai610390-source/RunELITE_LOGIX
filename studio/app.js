@@ -13,7 +13,7 @@ const KM=1.609344,MI=1609.344;
 const OPTION_COLORS=['#1b9a75','#9264ce','#ed9a42','#358bc3','#ce698a'];
 const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,preference:'soft',
  terrain:'any',quiet:true,waypoints:[],straight:false,reroll:0,working:false,
- strictSoft:true,allowRoadLinks:true,includeLikely:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
+ strictSoft:true,allowRoadLinks:true,allowBranchRetracing:true,includeLikely:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
  routeOptions:[],optionIndex:0,optionLayer:null,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
  aerialOn:false,aerialCandidates:[],aerialRegions:[],aerialStats:null,aerialFilter:'all',aerialBusy:false,
@@ -196,6 +196,8 @@ function drawRoute(preserveView=false){
   const color=COLORS[span.surface];if(!color||span.surface==='unknown')continue;
   L.polyline(span.points,{color,weight:span.evidence==='tagged'?4.7:3.4,
    opacity:span.evidence==='tagged'?1:.83,lineJoin:'round',interactive:false}).addTo(all);
+  if(span.retraced)L.polyline(span.points,{color:'#f1c6f5',weight:2.7,
+   dashArray:'3 7',opacity:.96,lineJoin:'round',interactive:false}).addTo(all);
  }
  for(const sec of r.manualSections||[]){
   L.polyline([sec.a,sec.b],{color:'#ffd47b',weight:5,opacity:1,dashArray:'5 7',
@@ -243,7 +245,9 @@ function updateStats(){
  evidence.hidden=!r.strictSoft;
  if(r.strictSoft){
   evidence.classList.toggle('warning',Math.abs(r.distance_miles-st.miles)>Math.max(.5,st.miles*.18));
-  evidence.textContent=r.strictNote||'Connected gravel/dirt segments only. Recorded tags and reviewed labels are not physical ground truth.';
+  evidence.textContent=(r.strictNote||'Recorded trail tags and reviews are not ground truth.')+
+   (r.retrace_miles>0?' Retraced distance: '+r.retrace_miles.toFixed(2)+
+    ' mi over '+r.retraced_edges+' reused trail segments.':'');
  }
 }
 function renderDirections(){
@@ -337,7 +341,8 @@ function renderRouteOptions(){
   const line=L.polyline(route.coordinates,{color,weight:selected?7:5,
    opacity:selected?.92:.76,lineJoin:'round',className:'route-alternative-line'});
   line.bindTooltip('Option '+(index+1)+' · '+route.distance_miles.toFixed(2)+
-   ' mi · '+route.soft_percent.toFixed(0)+'% soft',{sticky:true});
+   ' mi · '+route.soft_percent.toFixed(0)+'% likely soft · '+
+   (route.retrace_miles||0).toFixed(2)+' mi retraced',{sticky:true});
   line.on('click',event=>{
    L.DomEvent.stopPropagation(event);selectRouteOption(index);
   });
@@ -356,6 +361,8 @@ function renderRouteOptions(){
    'Out & back':'Point to point';
   if(route.probable_soft_percent>0)
    detail.textContent+=' · '+route.probable_soft_percent.toFixed(0)+'% probable trails';
+  if(route.retrace_miles>0)detail.textContent+=' · '+route.retrace_miles.toFixed(2)+' mi retraced';
+  if(route.branch_detours>0)detail.textContent+=' · '+route.branch_detours+' side-trail excursions';
   if(route.surface_percent.unknown>0)detail.textContent+=' · road surface untagged';
   button.append(label,figures,detail);
   button.addEventListener('click',()=>selectRouteOption(index));
@@ -407,7 +414,7 @@ async function autoGenerate(){
     lat:base.lat,lon:Number.isFinite(base.lon)?base.lon:base.lng,
     miles:st.miles,shape:st.shape,material:st.softMaterial,
     bounds,allowRoadLinks:st.allowRoadLinks,includeLikely:st.includeLikely,
-    maxRoadMeters:240,maxOptions:4
+    allowBranchRetracing:st.allowBranchRetracing,maxRoadMeters:240,maxOptions:4
    },{
     reviews:VISION?.getReviews?.()||{},
     connectors:VISION?.getConnectors?.()||[],
@@ -1130,6 +1137,10 @@ function wires(){
   st.allowRoadLinks=e.target.checked;
   if(st.route)status('Short road-link preference changed. Generate routes again to apply it.');
  });
+ $('branchRetraceToggle').addEventListener('change',e=>{
+  st.allowBranchRetracing=e.target.checked;
+  if(st.route)status('Branch retracing changed. Generate again to apply it.');
+ });
  $('likelyTrailToggle').addEventListener('change',e=>{
   st.includeLikely=e.target.checked;
   if(st.route)status('Probable trail setting changed. Generate again to apply it.');
@@ -1137,7 +1148,7 @@ function wires(){
  $('strictSoftToggle').addEventListener('change',e=>{
   st.strictSoft=e.target.checked;
   $('strictSoftNote').textContent=st.strictSoft?
-   'Show several soft-surface routes at once. Short mapped road connections are optional and limited to 240 m each.':
+   'Compare soft-surface routes and explore side branches with retracing. Short mapped road connections are optional.':
    'Standard walking routing can include paved roads. Surface percentages are estimated afterward.';
   if(st.route)status('Routing policy changed. Regenerate the route to apply it.');
  });
