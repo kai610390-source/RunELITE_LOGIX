@@ -375,35 +375,93 @@ function switchTab(name){
  for(const panel of document.querySelectorAll('.tab-panel'))panel.hidden=panel.id!=='tab-'+name;
  if(name==='saved')renderSaved();
 }
+function addReviewedSegment(start,end,source='mapped trail'){
+ if(!window.confirm('Include this possible '+source+' as a manually reviewed path? Check pedestrian access, fences, terrain, and safety yourself. Neither imagery nor OpenStreetMap proves it is accessible.'))return;
+ if(st.waypoints.length>=14){message('Too many waypoints. Remove some before adding a trail.');return;}
+ // Preserve the actual trail-like segment. Only connecting legs are snapped
+ // to the pedestrian network (which may still avoid narrow/missing trails).
+ st.traceOn=false;
+ if(st.straight){st.straight=false;$('straightToggle').checked=false;}
+ if(st.mode!=='draw')setMode('draw',true);
+ let a={lat:start.lat,lon:start.lon},b={lat:end.lat,lon:end.lon},at=st.waypoints.length;
+ if(st.waypoints.length>=2){
+  const center={lat:(a.lat+b.lat)/2,lon:(a.lon+b.lon)/2};
+  let best=Infinity;
+  for(let i=1;i<st.waypoints.length;i++){
+   const p=st.waypoints[i-1],q=st.waypoints[i];
+   const mid={lat:(p.lat+q.lat)/2,lon:(p.lon+q.lon)/2};
+   const meters=(center.lat-mid.lat)**2+((center.lon-mid.lon)*Math.cos(center.lat*Math.PI/180))**2;
+   if(meters<best){best=meters;at=i;}
+  }
+  const prev=st.waypoints[Math.max(0,at-1)];
+  const ds=(p)=>(p.lat-prev.lat)**2+(p.lon-prev.lon)**2;
+  if(ds(b)<ds(a)){const tmp=a;a=b;b=tmp;}
+ }
+ const pair=[{lat:a.lat,lon:a.lon,manualToHere:false},
+   {lat:b.lat,lon:b.lon,manualToHere:true}];
+ if(st.waypoints.length===0)st.waypoints=pair;
+ else st.waypoints.splice(at,0,...pair);
+ drawMarkers();deferManual();
+ st.map.closePopup();
+ status('Trail segment added. Nearby connecting legs are now being routed. Dashed gold segments are not verified for access or surface.');
+ message('Trail added as an explicit segment; check its access and continuity.',6500);
+}
+function trailReviewPopup(s){
+ const div=document.createElement('div');div.className='trail-review';
+ const title=document.createElement('h3');
+ title.textContent=s.likelyTrail?'Possible narrow mapped path':
+  (s.surface==='gravel'?'Mapped gravel':s.surface==='dirt'?'Mapped dirt':'Mapped '+s.surface);
+ const text=document.createElement('p');
+ text.textContent=(s.name||'Unnamed footpath')+' · '+(s.highway||'path')+
+  ' · '+(s.evidence==='tagged'?'Surface explicitly tagged':s.evidence==='inferred'?'Surface inferred':'No surface information');
+ const note=document.createElement('p');note.className='muted';
+ note.textContent='Even mapped paths can be blocked or privately restricted. Check access and actual surface before running.';
+ const button=document.createElement('button');button.textContent='Add this small path to my route';
+ button.addEventListener('click',()=>addReviewedSegment({lat:s.a[0],lon:s.a[1]},
+   {lat:s.b[0],lon:s.b[1]},'mapped footpath'));
+ const view=document.createElement('button');view.textContent='Inspect in Instant Street View';
+ view.style.background='#eaf4e8';view.style.color='#276044';
+ view.addEventListener('click',()=>window.open('https://www.instantstreetview.com/s/'+
+   ((s.a[0]+s.b[0])/2).toFixed(6)+','+((s.a[1]+s.b[1])/2).toFixed(6),'_blank','noopener,noreferrer'));
+ div.append(title,text,note,button,view);return div;
+}
 function drawGravel(segments){
  st.gravelLayer.clearLayers();st.gravelSegments=segments;
+ const ids=new Set(),possible=new Set(),tiny=new Set();
  for(const s of segments){
-  const col=COLORS[s.surface];if(!col)continue;
-  const line=L.polyline([s.a,s.b],{color:col,weight:s.evidence==='tagged'?4.3:2.6,opacity:s.evidence==='tagged'?.95:.7});
-  line.bindPopup('<strong>'+esc(s.name||'Unnamed path')+'</strong><br>'+esc(s.surface)+' · '+
-   (s.evidence==='tagged'?'OSM tagged':'Inferred, not confirmed'));
-  line.on('click',e=>{
-   L.DomEvent.stopPropagation(e);
-   if(st.mode==='draw')insertPointAt(e.latlng);
+  const kind=s.likelyTrail?'possible':s.surface;
+  const col=COLORS[kind]||COLORS.unknown;
+  const line=L.polyline([s.a,s.b],{
+   color:col,weight:s.likelyTrail?4:s.evidence==='tagged'?4.3:3.1,
+   dashArray:s.likelyTrail?'6 7':s.microtrail?'3 5':undefined,
+   opacity:s.evidence==='tagged'?.97:.88,
+   interactive:true
   });
+  line.bindPopup(()=>trailReviewPopup(s),{maxWidth:270});
+  line.on('click',e=>L.DomEvent.stopPropagation(e));
   line.addTo(st.gravelLayer);
+  ids.add(s.id);if(s.likelyTrail)possible.add(s.id);if(s.microtrail)tiny.add(s.id);
  }
  st.gravelOn=true;$('gravelBtn').classList.add('active');
- $('gravelStatus').textContent=segments.length+' matching mapped surface segments nearby (some may be inferred).';
+ $('gravelStatus').textContent=ids.size+' mapped paths/tracks in the scanned area, including '+
+  possible.size+' possible trails with untagged surfaces and '+tiny.size+
+  ' short or informal paths. Dashed yellow = surface unknown, NOT confirmed dirt.';
 }
 async function toggleGravel(force=false){
  if(st.gravelOn&&!force){
   st.gravelLayer.clearLayers();st.gravelOn=false;$('gravelBtn').classList.remove('active');
-  $('gravelStatus').textContent='Gravel overlay hidden.';return;
+  $('gravelStatus').textContent='Mapped small-trail overlay hidden.';return;
  }
  const center=st.map?.getCenter();if(!center)return;
- $('gravelStatus').textContent='Loading nearby surface tags from OpenStreetMap…';
+ $('gravelStatus').textContent='Searching mapped tiny paths, informal footways, and dirt/gravel trails…';
  try{
   const rows=await E.nearbyGravel(center);
-  drawGravel(rows);message(rows.length?rows.length+' mapped surface segments loaded.':'No tagged soft-surface ways in this area.',5500);
+  drawGravel(rows);
+  message(rows.length?rows.length+' mapped trail segments shown. Click any line to inspect or add it.':
+   'No mapped tiny paths found here. Try aerial scout or trace a visible trail.',6500);
  }catch(err){
-  $('gravelStatus').textContent='Could not load this small map extract: '+(err?.message||err);
-  message('Gravel overlay unavailable. Try zooming to another area.',5000);
+  $('gravelStatus').textContent='Small-trail lookup failed: '+(err?.message||err);
+  message('Map extract unavailable. Try aerial scout or pan to another area.',5000);
  }
 }
 async function showWeather(){
