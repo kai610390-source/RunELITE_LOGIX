@@ -325,7 +325,7 @@ async function autoGenerate(){
    const data=await STRICT.plan({
     lat:base.lat,lon:Number.isFinite(base.lon)?base.lon:base.lng,
     miles:st.miles,shape:st.shape,material:st.softMaterial
-   },{reviews:VISION?.getReviews?.()||{}});
+   },{reviews:VISION?.getReviews?.()||{},connectors:VISION?.getConnectors?.()||[]});
    route=data.route;strictNote=data.note;route.strictNote=data.note;
   }else if(st.shape==='point-to-point'){
    const a={lat:base.lat,lon:base.lng},b=offset(base,(st.reroll*61+55)%360,st.miles*MI*.85);
@@ -358,7 +358,8 @@ async function manualBuild(){
   if(st.strictSoft){
    if(st.straight||hybrid)throw Error('Strict mode cannot claim an unmapped sketch is gravel/dirt. Turn off Strict mode for sketches, or review each mapped segment first.');
    if(!STRICT)throw Error('Strict router missing. Refresh the Studio.');
-   const data=await STRICT.planBetween(copy,{material:st.softMaterial,reviews:VISION?.getReviews?.()||{}});
+   const data=await STRICT.planBetween(copy,{material:st.softMaterial,reviews:VISION?.getReviews?.()||{},
+     connectors:VISION?.getConnectors?.()||[]});
    route=data.route;route.strictNote=data.note;
   }else route=st.straight?E.directRoute(copy):hybrid?await E.hybridRoute(copy):await E.snapRoute(copy);
   if(request!==lastRouteRequest||st.mode!=='draw')return;
@@ -688,6 +689,36 @@ async function scanAerial(){
   message('Aerial scanner unavailable. Manual trail tracing still works.',5500);
  }finally{st.aerialBusy=false;$('aerialScanBtn').disabled=false;}
 }
+function confirmTracedTrails(label){
+ if(!VISION?.saveConnector){message('Surface confirmation module missing. Refresh the Studio.');return;}
+ const runs=[],points=st.waypoints;let current=null;
+ for(let i=1;i<points.length;i++){
+  if(points[i].manualToHere){
+   if(!current)current=[points[i-1]];
+   current.push(points[i]);
+  }else if(current){if(current.length>=2)runs.push(current);current=null;}
+ }
+ if(current&&current.length>=2)runs.push(current);
+ if(!runs.length){
+  message('First use Trace trail, click at least two points along the missing path, then confirm its surface.',7000);
+  return;
+ }
+ const verified=window.confirm('Confirm ALL of the traced sections are actually '+label+
+  ' and walkable with permitted access? This creates human-reviewed path connections. Aerial imagery and the model cannot verify surface, permissions or safety by themselves.');
+ if(!verified)return;
+ let count=0;
+ for(const run of runs)try{
+  VISION.saveConnector(run,label);count++;
+ }catch(err){message('Could not save a segment: '+(err?.message||err),6500);}
+ $('traceSavedCount').textContent=VISION.getConnectors().length+' saved';
+ if(count){
+  st.traceOn=false;$('traceTrailBtn').textContent='✎ Trace a path I can see';
+  $('traceTrailBtn').classList.remove('active');$('traceMapBtn').classList.remove('active');
+  setMode('auto');
+  status(count+' '+label+' trail connection(s) saved. Generate a strict route again to use them. Unmapped connections appear as human-reviewed, not OSM-tagged.');
+  message('Traced gravel/dirt connector saved. Generate a strict route again.',7000);
+ }
+}
 function toggleTrace(){
  st.traceOn=!st.traceOn;
  if(st.traceOn){
@@ -900,6 +931,8 @@ function wires(){
  $('aerialScanBtn').addEventListener('click',scanAerial);
  $('clearAerialBtn').addEventListener('click',clearAerial);
  $('traceTrailBtn').addEventListener('click',toggleTrace);
+ $('confirmTraceGravelBtn').addEventListener('click',()=>confirmTracedTrails('gravel'));
+ $('confirmTraceDirtBtn').addEventListener('click',()=>confirmTracedTrails('dirt'));
  $('traceMapBtn').addEventListener('click',toggleTrace);
  $('scanGravelBtn').addEventListener('click',()=>toggleGravel(true));
  $('clearGravelBtn').addEventListener('click',()=>toggleGravel());
@@ -934,7 +967,8 @@ function wires(){
 }
 function start(){
  if(!E){$('routeMessage').textContent='Studio engine did not load. Refresh this page.';return;}
- wires();setupMap();renderSaved();trainerCounts();openShared();
+ wires();setupMap();renderSaved();trainerCounts();
+ $('traceSavedCount').textContent=(VISION?.getConnectors?.()?.length||0)+' saved';openShared();
 }
 window.SurfaceStrideStudio={_state:st,_test:{esc}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
