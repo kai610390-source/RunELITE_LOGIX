@@ -414,7 +414,31 @@ function switchTab(name){
  for(const panel of document.querySelectorAll('.tab-panel'))panel.hidden=panel.id!=='tab-'+name;
  if(name==='saved')renderSaved();
 }
-function addReviewedSegment(start,end,source='mapped trail'){
+function addReviewedSegment(start,end,source='mapped trail',segment=null){
+ if(st.strictSoft){
+  if(!segment){
+   if(!st.traceOn)toggleTrace();
+   st.map?.fitBounds([[start.lat,start.lon],[end.lat,end.lon]],{maxZoom:19});
+   message('Aerial paths are unverified. Trace the visible trail, then Confirm trace: Gravel or Dirt before strict routing.',8500);
+   return;
+  }
+  const review=VISION?.getReviews?.()?.[segment.segmentKey];
+  const material=review?.confirmed?review.label:
+   segment.evidence==='tagged'?segment.surface:'unknown';
+  if(!['gravel','dirt'].includes(material)){
+   message('Classify and confirm this exact segment as gravel/dirt before adding it to a strict route.',7000);
+   startTraining(segment);return;
+  }
+  if(st.mode!=='draw')setMode('draw',false);
+  st.traceOn=false;st.waypoints=[
+   {lat:start.lat,lon:start.lon,manualToHere:false},
+   {lat:end.lat,lon:end.lon,manualToHere:false}
+  ];
+  drawMarkers();deferManual();
+  st.map?.closePopup();
+  status('Connecting this confirmed '+material+' mapped trail segment without paved shortcuts.');
+  return;
+ }
  if(!window.confirm('Include this possible '+source+' as a manually reviewed path? Check pedestrian access, fences, terrain, and safety yourself. Neither imagery nor OpenStreetMap proves it is accessible.'))return;
  if(st.waypoints.length>=14){message('Too many waypoints. Remove some before adding a trail.');return;}
  // Preserve the actual trail-like segment. Only connecting legs are snapped
@@ -620,7 +644,7 @@ function trailReviewPopup(s){
  train.addEventListener('click',()=>startTraining(s));
  const add=document.createElement('button');add.textContent='Add this small path to my route';
  add.addEventListener('click',()=>addReviewedSegment({lat:s.a[0],lon:s.a[1]},
-   {lat:s.b[0],lon:s.b[1]},'mapped footpath'));
+   {lat:s.b[0],lon:s.b[1]},'mapped footpath',s));
  const view=document.createElement('button');view.textContent='Inspect in Instant Street View';
  view.style.background='#eaf4e8';view.style.color='#276044';
  view.addEventListener('click',()=>window.open('https://www.instantstreetview.com/s/'+
