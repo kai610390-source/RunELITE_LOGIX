@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Surface Lab V4</title>
-<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V4B -->
+<title>SurfaceStride Studio | Surface Lab V5</title>
+<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V5 -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -16,11 +16,12 @@
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>SURFACE LAB V4</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>SURFACE LAB V5</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
       <span class="status-indicator" title="Your routes stay in this browser"><i></i> No paywall · No account</span>
+      <a class="head-btn" href="./train.html?v=trainer-v5" style="color:#1d7345;font-weight:900">Train surfaces ↗</a>
       <button class="head-btn" id="helpBtn">How to use</button>
       <a class="head-btn" href="../" title="Open the original SurfaceStride route generator">Original planner ↗</a>
     </div>
@@ -112,6 +113,8 @@
           <button class="secondary-wide" id="clearAerialBtn">Hide aerial suggestions</button>
           <p class="hint">Inspect imagery, fences, access, and route continuity before adding a segment. Satellite imagery cannot establish whether land is public or a path is passable.</p>
           <div class="section-label"><span>◎</span> Train surface recognition</div>
+          <a class="secondary-wide" style="display:block;text-decoration:none;text-align:center;background:#216f47;color:white;border-color:#216f47" href="./train.html?v=trainer-v5">Open full-page surface trainer ↗</a>
+          <p class="hint">The dedicated trainer has a larger map, always-visible labels, and an image-upload fallback when aerial loading fails.</p>
           <p class="hint">Zoom into a trail with public NAIP imagery, then label what you know: gravel, dirt, grass, paved road or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing. Aim for dozens of correctly labeled Austin-area examples per class before relying on predictions.</p>
           <button class="secondary-wide" id="trainMapCenterBtn">Inspect surface at map center ↗</button>
           <button class="secondary-wide" id="trainRandomBtn">Random aerial sample near map center ↗</button>
@@ -213,7 +216,7 @@
 <script src="../share-route.js?build=studio1"></script>
 <script src="./engine.js?build=surface-lab-v4b-20261109"></script>
 <script src="./strict-soft.js?build=surface-lab-v4b-20261109"></script>
-<script src="./surface-vision.js?build=surface-lab-v4b-20261109"></script>
-<script src="./app.js?build=surface-lab-v4b-20261109"></script>
+<script src="./surface-vision.js?build=surface-trainer-v5-20261109"></script>
+<script src="./app.js?build=surface-trainer-v5-20261109"></script>
 </body>
 </html>

@@ -508,10 +508,13 @@ async function trainAt(lat,lon,segment=null){
  try{
   const sample=await VISION.capture(lat,lon,{spanMeters:38,px:384});
   showTrainerSample(sample,segment);
+  $('trainerBox').scrollIntoView({behavior:'smooth',block:'center'});
   message('Zoomed-in aerial sample loaded. Label its surface to train the classifier.',5600);
  }catch(err){
   $('trainerContext').textContent='Image unavailable: '+(err?.message||err);
-  $('trainerPrediction').textContent='Try a smaller visible path or an image you own.';
+  $('trainerPrediction').textContent='Try an authorized image upload, or use the dedicated Surface Trainer for clearer errors.';
+  $('trainerStatus').textContent='Use “Add my own licensed training image” or open the full-page Surface Trainer.';
+  $('trainerBox').scrollIntoView({behavior:'smooth',block:'center'});
   st.trainerSample=null;st.trainerSegment=null;
  }finally{$('trainMapCenterBtn').disabled=false;}
 }
@@ -961,12 +964,13 @@ function wires(){
   document.querySelectorAll('[data-soft-material]').forEach(x=>x.classList.toggle('active',x===b));
   if(st.route)status('Material changed. Regenerate to use only '+st.softMaterial+' paths.');
  }));
- $('trainMapCenterBtn').addEventListener('click',()=>{
-  const p=st.map.getCenter();trainAt(p.lat,p.lng);
- });
- $('trainMapBtn').addEventListener('click',()=>{
-  const p=st.map.getCenter();trainAt(p.lat,p.lng);
- });
+ function openFullTrainer(){
+  const p=st.map?.getCenter();
+  const q=p?'?lat='+p.lat.toFixed(6)+'&lon='+p.lng.toFixed(6)+'&v=trainer-v5':'?v=trainer-v5';
+  window.location.href='./train.html'+q;
+ }
+ $('trainMapCenterBtn').addEventListener('click',openFullTrainer);
+ $('trainMapBtn').addEventListener('click',openFullTrainer);
  $('trainUploadBtn').addEventListener('click',()=>$('trainFile').click());
  $('trainFile').addEventListener('change',e=>trainUpload(e.target.files?.[0]));
  document.querySelectorAll('[data-training-label]').forEach(b=>
