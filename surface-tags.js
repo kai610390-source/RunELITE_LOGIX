@@ -173,7 +173,12 @@ function apply(route,segments,pref='soft'){
   const spans=[],edgeTypes=[];let cur=null,all=0;
   for(let i=1;i<pts.length;i++){
     const m=dist(pts[i-1],pts[i]);if(m<.001)continue;
-    const c=classifyEdge(pts[i-1],pts[i],ix);
+    // Never infer a surface for an explicitly hand-traced / unverified shortcut.
+    const manual=(route.manualSections||[]).some(sec=>
+      (dist(pts[i-1],sec.a)<1.5&&dist(pts[i],sec.b)<1.5)||
+      (dist(pts[i-1],sec.b)<1.5&&dist(pts[i],sec.a)<1.5));
+    const c=manual?{surface:'unknown',evidence:'unknown',raw:'user-reviewed sketch'}:
+      classifyEdge(pts[i-1],pts[i],ix);
     edgeTypes[i]=c;
     meters[c.surface]+=m;ev[c.evidence]+=m;all+=m;
     if(!cur||cur.surface!==c.surface||cur.evidence!==c.evidence){
