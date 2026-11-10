@@ -44,9 +44,9 @@ function corridor(data,x,y,dx,dy){
   // Green-flanked corridor OR narrow uniform line on both sides.
   // Building edges normally have contrast on only one side;
   // tree texture doesn't maintain a continuous two-sided stripe.
-  const vegetated=contrast>.068&&greenContrast>.17&&together>.49&&centerStd<.15;
-  const openLine=contrast>.105&&bilateral>.68&&consistency>.67&&
-   symmetry>.45&&centerStd<.085;
+  const vegetated=contrast>.039&&greenContrast>.17&&together>.49&&centerStd<.11;
+  const openLine=contrast>.11&&bilateral>.80&&consistency>.79&&
+   symmetry>.55&&centerStd<.043;
   const passes=vegetated||openLine;
   const score=contrast*2.1+Math.max(0,greenContrast)*.72+
    (openLine?bilateral*.19:0)+symmetry*.08;
@@ -86,7 +86,7 @@ function imageLine(data){
   for(let i=0;i<8;i++){
    const angle=Math.PI*i/8,dx=Math.cos(angle),dy=Math.sin(angle);
    const line=corridor(data,x,y,dx,dy);
-   if(!line.passes||line.greenContrast<.17||line.contrast<.10)continue;
+   if(!line.passes||(line.vegetated?line.contrast<.039:line.contrast<.10))continue;
    best.push({x,y,score:line.score,source:'possible-image-trail',line});
   }
  }
@@ -130,7 +130,7 @@ function screenCandidates(data,{mapped=[],maxCandidates=8}={}){
    for(let a=0;a<8;a++){
     const angle=a*Math.PI/8,dx=Math.cos(angle),dy=Math.sin(angle);
     const line=corridor(data,x,y,dx,dy);
-    if(!line.passes||line.contrast<.10||line.greenContrast<.17)continue;
+    if(!line.passes||(line.vegetated?line.contrast<.039:line.contrast<.10))continue;
     raw.push({x,y,score:line.score,dx,dy,source:'possible-image-trail'});
    }
   }
