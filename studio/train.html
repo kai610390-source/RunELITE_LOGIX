@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#13271e">
+<meta name="description" content="Train SurfaceStride's local gravel dirt grass and pavement classifier using public aerial imagery or your own images.">
+<title>SurfaceStride — Train Surfaces</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#244533;background:#f4f7f1}
+*{box-sizing:border-box}body{margin:0}.header{background:#fff;border-bottom:1px solid #dce8db;display:flex;align-items:center;justify-content:space-between;padding:15px 24px;gap:15px}.brand{color:#153f2b;font-size:20px;font-weight:850;letter-spacing:-1px}.brand em{font-style:normal;color:#53a977}.brand small{display:block;font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:#7c9a84;margin-top:4px}.header a{color:#216344;text-decoration:none;font-size:12px;font-weight:760}
+.main{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);max-width:1470px;margin:0 auto;gap:20px;padding:22px}
+.card{background:white;border:1px solid #e1e9e0;border-radius:15px;overflow:hidden;box-shadow:0 4px 18px #1238210b}.card-head{padding:18px 21px 12px}.eyebrow{font-size:10px;font-weight:850;letter-spacing:1.8px;color:#529273;text-transform:uppercase}.card h1,.card h2{font-family:Georgia,serif;font-weight:500;letter-spacing:-.5px;color:#244e35;margin:8px 0}.card h1{font-size:29px}.card h2{font-size:23px}.desc{font-size:12px;color:#779081;line-height:1.55;margin:10px 0}.map{height:455px;background:#384838}.maphelp{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 21px;border-top:1px solid #e4ede5;color:#62816a;font-size:11px}.coord{font-variant-numeric:tabular-nums;color:#255e3f;font-weight:800}.controls{padding:17px 21px;display:flex;flex-wrap:wrap;gap:9px;border-top:1px solid #e4ede5}
+button,.filelabel{font:inherit;cursor:pointer;border-radius:9px;padding:11px 13px;font-weight:750;font-size:12px;border:1px solid #bedbc3;background:#edf8ee;color:#215d3f}
+button:hover,.filelabel:hover{background:#d8efdd}button:focus-visible,input:focus-visible{outline:3px solid #67c18b;outline-offset:2px}
+.primary{color:white;background:#1d6443;border-color:#1d6443}.primary:hover{background:#105134}.secondary{background:#fff;color:#426950}.muted{color:#879d8b}
+.status{padding:13px 18px;border-radius:10px;background:#edf6ee;border:1px solid #d9e9dc;margin:12px 20px;color:#3d7551;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.status.error{background:#fff3e9;border-color:#e9d1bc;color:#87533c}.status.loading{background:#ebf4fc;color:#37678b}.status.ok{background:#e5f7e9;color:#267046}
+.viewer{padding:18px 21px}.frame{aspect-ratio:1/1;border-radius:12px;border:1px solid #cdddce;background:linear-gradient(135deg,#e0ebdd,#d0dfd1);display:grid;place-items:center;overflow:hidden;position:relative}.frame img{width:100%;height:100%;object-fit:cover;display:none}.frame.has-image img{display:block}.frame.has-image .placeholder{display:none}
+.placeholder{padding:22px;text-align:center;color:#668875;font-size:13px;line-height:1.55}.placeholder svg{display:block;width:54px;height:54px;margin:0 auto 14px;opacity:.8}
+.prediction{margin:12px 0;padding:11px;background:#eff6ef;border:1px solid #deebde;border-radius:9px;color:#3e7251;font-size:12px;line-height:1.5}
+.labels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.labels button{min-height:52px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px}
+.dot{width:12px;height:12px;border-radius:50%}.counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:15px 20px}.count{border:1px solid #e4eee3;border-radius:10px;padding:10px 5px;text-align:center;background:#f7fbf6}.count b{font-size:19px;display:block;color:#2d7547}.count span{font-size:9px;color:#8b9e8f}.totals{padding:0 21px 15px;color:#6c8672;font-size:11px;line-height:1.6}
+.actions{padding:14px 21px 19px;border-top:1px solid #e5ede5;display:flex;flex-wrap:wrap;gap:8px}.actions button{background:#fff;font-size:11px}
+.instructions{max-width:1470px;margin:0 auto;padding:0 24px 30px;font-size:12px;line-height:1.7;color:#718d78}.instructions strong{color:#365e42}
+.fileinput{display:none}
+@media(max-width:830px){.main{grid-template-columns:1fr;padding:12px;gap:12px}.map{height:315px}.header{padding:13px}.card h1{font-size:24px}.counts{gap:3px}.count{padding:8px 2px}.count span{font-size:8px}.labels{grid-template-columns:repeat(2,1fr)}.controls{padding:13px}.instructions{padding:12px}}
+</style>
+</head>
+<body>
+<header class="header"><div class="brand">surface<em>stride.</em><small>Surface Trainer · V5</small></div><a href="./?v=surface-lab-v5">← Back to Route Studio</a></header>
+<main class="main">
+<section class="card">
+ <div class="card-head"><span class="eyebrow">01 / Choose a surface</span><h1>Pick a real surface to label.</h1><p class="desc">Click the satellite map to choose an exact location. Then load a close-up from public USGS aerial imagery, or add a photo you have the rights to use.</p></div>
+ <div id="trainerMap" class="map" aria-label="Austin satellite imagery map; click to choose a surface"></div>
+ <div class="maphelp"><span>Click the map to move the sample pin. Zoom in to identify the path.</span><span id="sampleCoordinates" class="coord">Austin, TX</span></div>
+ <div class="controls">
+   <button id="loadNAIP" class="primary">◎ Load aerial close-up</button>
+   <button id="randomSample">↻ Sample near the map center</button>
+   <button id="uploadImage" class="secondary">↑ Use my own image</button>
+   <input class="fileinput" type="file" id="imageFile" accept="image/png,image/jpeg,image/webp">
+ </div>
+ <div class="status" role="status" aria-live="polite" id="status">Ready. Select a location, then choose “Load aerial close-up” or “Use my own image.”</div>
+</section>
+<section class="card">
+ <div class="card-head"><span class="eyebrow">02 / Label & train</span><h2>What surface is this?</h2><p class="desc">Choose the actual surface, not the model's guess. Each answer trains the classifier on this browser.</p></div>
+ <div class="viewer"><div class="frame" id="imageFrame"><div class="placeholder"><svg viewBox="0 0 48 48" fill="none" stroke="#548f6b" stroke-width="2"><rect x="5" y="7" width="38" height="34" rx="6"/><path d="m9 32 11-11 7 6 5-7 7 12"/></svg>Load an image to begin. Your labeling controls are right here.</div><img id="samplePreview" alt="Close-up image to classify"></div>
+ <div class="prediction" id="prediction">No image loaded yet. The model needs at least 8 labeled samples from two surface types before it can suggest a class.</div>
+ <div class="labels">
+   <button data-label="gravel"><i class="dot" style="background:#d7ae73"></i>Gravel</button>
+   <button data-label="dirt"><i class="dot" style="background:#a87853"></i>Dirt</button>
+   <button data-label="grass"><i class="dot" style="background:#62bc78"></i>Grass</button>
+   <button data-label="paved"><i class="dot" style="background:#9eb3b7"></i>Paved road</button>
+   <button data-label="unknown"><i class="dot" style="background:#a5ada6"></i>Not sure</button>
+ </div>
+ <p class="desc" id="labelHelp" style="margin:12px 0 0">Load a sample first, then tap a label. You can continue labeling without reloading the Studio.</p>
+ </div>
+ <div class="counts">
+   <div class="count"><b id="countGravel">0</b><span>Gravel</span></div><div class="count"><b id="countDirt">0</b><span>Dirt</span></div><div class="count"><b id="countGrass">0</b><span>Grass</span></div><div class="count"><b id="countPaved">0</b><span>Paved</span></div><div class="count"><b id="countUnknown">0</b><span>Unknown</span></div>
+ </div>
+ <div id="countMessage" class="totals">0 examples saved to this browser.</div>
+ <div class="actions">
+   <button id="nextSample" class="primary">Next random aerial sample</button>
+   <button id="exportExamples">↓ Export labels</button>
+   <button id="importExamples">↑ Import labels</button>
+   <input class="fileinput" type="file" id="datasetFile" accept=".json,application/json">
+   <button id="undoLabel" title="Remove the most recent labeled example">Undo last label</button>
+ </div>
+</section>
+</main>
+<p class="instructions"><strong>About the training:</strong> This is a small local color/texture classifier, not an established computer-vision model. It cannot certify a trail's surface or pedestrian access from aerial imagery. Label a diverse set of verified surfaces; train data and reviewed sections stay in your browser unless you export the numerical features. USGS aerial photos may be older than current conditions. Google Maps imagery is not collected or used for training.</p>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="./surface-vision.js?v=surface-trainer-v5"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const labels=['gravel','dirt','grass','paved','unknown'];
+const state={lat:30.285,lon:-97.735,sample:null,loading:false,map:null,pin:null};
+function report(message,kind=''){
+ const el=$('status');el.className='status '+kind;el.textContent=message;
+}
+function refresh(){
+ const V=window.SurfaceStrideVision;
+ if(!V){report('Training library failed to load. Refresh or try another browser.','error');return;}
+ const c=V.count();
+ for(const label of labels)$('count'+label[0].toUpperCase()+label.slice(1)).textContent=c[label]||0;
+ const total=Object.values(c).reduce((a,b)=>a+b,0);
+ $('countMessage').textContent=total+' examples saved locally. '+V.reviewedCount()+
+  ' reviewed map sections. '+(total<8?'Start with 8+ examples in two or more categories.':
+  'Continue collecting varied examples; predictions are not validated.');
+}
+function pinTo(lat,lon,move=false){
+ state.lat=lat;state.lon=lon;
+ $('sampleCoordinates').textContent=lat.toFixed(5)+', '+lon.toFixed(5);
+ if(state.pin)state.pin.setLatLng([lat,lon]);
+ if(move&&state.map)state.map.panTo([lat,lon]);
+}
+function setupMap(){
+ if(typeof L==='undefined'){report('Satellite map library unavailable. You can still train using your own images.','error');return;}
+ const map=L.map('trainerMap',{zoomControl:true}).setView([state.lat,state.lon],16);
+ state.map=map;
+ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+ {maxZoom:19,attribution:'Imagery © Esri & providers'}).addTo(map);
+ map.createPane('surfaceLabels');map.getPane('surfaceLabels').style.zIndex=350;map.getPane('surfaceLabels').style.pointerEvents='none';
+ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+ {maxZoom:19,pane:'surfaceLabels',opacity:.7}).addTo(map);
+ state.pin=L.circleMarker([state.lat,state.lon],{radius:8,color:'#fff',weight:3,
+  fillColor:'#227347',fillOpacity:1}).addTo(map);
+ map.on('click',e=>pinTo(e.latlng.lat,e.latlng.lng));
+ window.addEventListener('resize',()=>map.invalidateSize());
+ pinTo(state.lat,state.lon);
+}
+function display(sample){
+ state.sample=sample;
+ $('samplePreview').src=sample.preview;
+ $('imageFrame').classList.add('has-image');
+ const V=window.SurfaceStrideVision,p=V.predict(sample.vector);
+ $('prediction').textContent=p.trained?
+  'Model suggestion: '+p.label+' ('+Math.round(p.confidence*100)+
+  '% neighbor vote agreement). UNVERIFIED, check the image yourself.':
+  'Model not trained yet. '+p.reason;
+ $('labelHelp').textContent=(sample.source==='NAIP'?'Public aerial close-up':'Your uploaded image')+
+  ' · choose its ACTUAL surface below.';
+ report('Image loaded successfully. Choose Gravel, Dirt, Grass, Paved road or Not sure.','ok');
+}
+async function loadNAIP(random=false){
+ if(state.loading)return;
+ const V=window.SurfaceStrideVision;
+ if(!V){report('Training library unavailable. Try refreshing the page.','error');return;}
+ const center=state.map?.getCenter();
+ let lat=random&&center?center.lat:state.lat,lon=random&&center?center.lng:state.lon;
+ if(random&&center){
+  const angle=Math.random()*Math.PI*2,meters=50+Math.random()*320;
+  lat=center.lat+meters*Math.cos(angle)/111195;
+  lon=center.lng+meters*Math.sin(angle)/(111195*Math.max(.15,Math.cos(center.lat*Math.PI/180)));
+  pinTo(lat,lon,true);
+ }
+ state.loading=true;$('loadNAIP').disabled=true;$('randomSample').disabled=true;$('nextSample').disabled=true;
+ report('Loading a public aerial close-up and analyzing image pixels…','loading');
+ try{display(await V.capture(lat,lon,{spanMeters:32,px:384,timeout:16000}));}
+ catch(err){
+  report('Aerial close-up failed: '+(err?.message||err)+
+   '. You can still train: click “Use my own image” and select a JPG/PNG photo.','error');
+ }finally{
+  state.loading=false;$('loadNAIP').disabled=false;$('randomSample').disabled=false;$('nextSample').disabled=false;
+ }
+}
+async function upload(file){
+ if(!file)return;
+ if(!window.SurfaceStrideVision){report('Training library unavailable.','error');return;}
+ report('Loading your image…','loading');
+ try{display(await window.SurfaceStrideVision.fromFile(file));}
+ catch(err){report('Image upload failed: '+(err?.message||err),'error');}
+ finally{$('imageFile').value='';}
+}
+function label(value){
+ if(!state.sample){report('Choose “Load aerial close-up” or “Use my own image” before labeling.','error');return;}
+ try{
+  const V=window.SurfaceStrideVision;
+  V.addExample(state.sample.vector,value,{source:state.sample.source,lat:state.sample.lat,lon:state.sample.lon});
+  refresh();
+  report('Saved as '+value+'. Your training example is now stored in this browser. Choose the next sample when ready.','ok');
+  const p=V.predict(state.sample.vector);
+  $('prediction').textContent=p.trained?'Updated model predicts '+p.label+' (unverified, '+Math.round(p.confidence*100)+'% vote agreement).':
+   'Saved example. '+p.reason;
+ }catch(err){report('Could not save this label: '+(err?.message||err),'error');}
+}
+function download(content,name){
+ const blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob);
+ const link=document.createElement('a');link.href=url;link.download=name;
+ document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function wire(){
+ $('loadNAIP').addEventListener('click',()=>loadNAIP(false));
+ $('randomSample').addEventListener('click',()=>loadNAIP(true));
+ $('nextSample').addEventListener('click',()=>loadNAIP(true));
+ $('uploadImage').addEventListener('click',()=>$('imageFile').click());
+ $('imageFile').addEventListener('change',e=>upload(e.target.files?.[0]));
+ document.querySelectorAll('[data-label]').forEach(b=>b.addEventListener('click',()=>label(b.dataset.label)));
+ $('exportExamples').addEventListener('click',()=>{
+  if(!window.SurfaceStrideVision){report('Training library unavailable.','error');return;}
+  download(JSON.stringify(window.SurfaceStrideVision.exportTraining(),null,2),'surfacestride-training-features.json');
+  report('Training labels exported (numerical features only, no images).','ok');
+ });
+ $('importExamples').addEventListener('click',()=>$('datasetFile').click());
+ $('datasetFile').addEventListener('change',async e=>{
+  try{
+   const file=e.target.files?.[0];if(!file)return;
+   if(file.size>3000000)throw Error('Dataset too large');
+   window.SurfaceStrideVision.importTraining(JSON.parse(await file.text()));
+   refresh();report('Training dataset imported.','ok');
+  }catch(err){report('Could not import labels: '+(err?.message||err),'error');}
+  finally{$('datasetFile').value='';}
+ });
+ $('undoLabel').addEventListener('click',()=>{
+  const V=window.SurfaceStrideVision;
+  if(!V?.removeLastExample){report('Undo control is not available. Try refreshing.','error');return;}
+  try{const r=V.removeLastExample();refresh();report(r?'Last training label removed.':'No labels to undo.',r?'ok':'');}
+  catch(err){report(err?.message||String(err),'error');}
+ });
+}
+function start(){wire();setupMap();refresh();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();
+</script>
+</body>
+</html>
