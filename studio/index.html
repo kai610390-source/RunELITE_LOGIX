@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Free Route Builder</title>
+<title>SurfaceStride Studio | Microtrails V3</title>
+<!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <link rel="stylesheet" href="./styles.css?v=3">
@@ -14,7 +15,7 @@
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>FREE</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>MICROTRAIL V3</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
@@ -83,7 +84,7 @@
         </section>
         <section class="tab-panel" id="tab-discover" hidden>
           <div class="section-label"><span>◆</span> Small-trail discovery</div>
-          <p class="hint">Find skinny unnamed footpaths, informal tracks, short dirt trails, and gravel sections—even when the surface tag is missing.</p>
+          <p class="hint"><strong>NEW: Microtrail V3.</strong> Reveal skinny unnamed footpaths, informal tracks, short dirt trails, and gravel sections—even if the surface tag is missing. Yellow dotted lines are possible trails, not proven dirt.</p>
           <button class="secondary-wide" id="scanGravelBtn">Reveal small mapped trails ↗</button>
           <p class="hint" id="gravelStatus">Dotted yellow = possible mapped trail with unknown surface. Click a line to review or add it to a route.</p>
           <div class="surface-key"><div><i style="background:#5ed98c"></i>Grass</div><div><i style="background:#b9825c"></i>Dirt</div><div><i style="background:#f5bb70"></i>Gravel</div><div><i style="background:#9db6b0"></i>Paved</div><div><i style="background:#cf91c4"></i>Track</div><div><i style="background:#c8cdd0"></i>Unknown</div><div><i style="background:#f8da6e"></i>Possible small trail</div></div>
