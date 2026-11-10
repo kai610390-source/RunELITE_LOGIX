@@ -71,13 +71,18 @@ button:hover,.filelabel:hover{background:#d8efdd}button:focus-visible,input:focu
 </main>
 <p class="instructions"><strong>About the training:</strong> This is a small local color/texture classifier, not an established computer-vision model. It cannot certify a trail's surface or pedestrian access from aerial imagery. Label a diverse set of verified surfaces; train data and reviewed sections stay in your browser unless you export the numerical features. USGS aerial photos may be older than current conditions. Google Maps imagery is not collected or used for training.</p>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="./surface-vision.js?v=surface-trainer-v5"></script>
+<script src="./surface-vision.js?v=surface-trainer-v5b"></script>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
 const labels=['gravel','dirt','grass','paved','unknown'];
-const state={lat:30.285,lon:-97.735,sample:null,loading:false,map:null,pin:null};
+const parameters=new URLSearchParams(location.search);
+const pLat=Number(parameters.get('lat')),pLon=Number(parameters.get('lon'));
+const useQuery=parameters.has('lat')&&parameters.has('lon')&&Number.isFinite(pLat)&&Number.isFinite(pLon)&&
+ Math.abs(pLat)<85&&Math.abs(pLon)<=180;
+const state={lat:useQuery?pLat:30.285,lon:useQuery?pLon:-97.735,
+ sample:null,loading:false,map:null,pin:null};
 function report(message,kind=''){
  const el=$('status');el.className='status '+kind;el.textContent=message;
 }
