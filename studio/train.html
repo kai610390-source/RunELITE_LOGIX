@@ -71,7 +71,7 @@ button:hover,.filelabel:hover{background:#d8efdd}button:focus-visible,input:focu
 </main>
 <p class="instructions"><strong>About the training:</strong> This is a small local color/texture classifier, not an established computer-vision model. It cannot certify a trail's surface or pedestrian access from aerial imagery. Label a diverse set of verified surfaces; train data and reviewed sections stay in your browser unless you export the numerical features. USGS aerial photos may be older than current conditions. Google Maps imagery is not collected or used for training.</p>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="./surface-vision.js?v=surface-trainer-v5b"></script>
+<script src="./surface-vision.js?v=surface-trainer-v5c"></script>
 <script>
 (function(){
 'use strict';
@@ -142,6 +142,7 @@ async function loadNAIP(random=false){
   lon=center.lng+meters*Math.sin(angle)/(111195*Math.max(.15,Math.cos(center.lat*Math.PI/180)));
   pinTo(lat,lon,true);
  }
+ state.sample=null;$('imageFrame').classList.remove('has-image');
  state.loading=true;$('loadNAIP').disabled=true;$('randomSample').disabled=true;$('nextSample').disabled=true;
  report('Loading a public aerial close-up and analyzing image pixels…','loading');
  try{display(await V.capture(lat,lon,{spanMeters:32,px:384,timeout:16000}));}
@@ -155,6 +156,7 @@ async function loadNAIP(random=false){
 async function upload(file){
  if(!file)return;
  if(!window.SurfaceStrideVision){report('Training library unavailable.','error');return;}
+ state.sample=null;$('imageFrame').classList.remove('has-image');
  report('Loading your image…','loading');
  try{display(await window.SurfaceStrideVision.fromFile(file));}
  catch(err){report('Image upload failed: '+(err?.message||err),'error');}
@@ -206,7 +208,14 @@ function wire(){
   catch(err){report(err?.message||String(err),'error');}
  });
 }
-function start(){wire();setupMap();refresh();}
+function start(){
+ wire();
+ try{setupMap();}catch(err){
+  report('Satellite map could not start: '+(err?.message||err)+
+   '. You can still train by uploading an authorized image.','error');
+ }
+ refresh();
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 </script>
