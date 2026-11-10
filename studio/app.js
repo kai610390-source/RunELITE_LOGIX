@@ -72,6 +72,10 @@ function onMapClick(e){
  st.waypoints.push({lat:e.latlng.lat,lon:e.latlng.lng,
   manualToHere:st.traceOn&&st.waypoints.length>0});
  drawMarkers();
+ if(st.traceOn){
+  status(st.waypoints.length+' points traced. Confirm Gravel or Dirt in Discover to make this path eligible for strict routing.');
+  return;
+ }
  if(st.waypoints.length>=2)deferManual();
  else status('First waypoint placed. Click another point to draw a route.');
 }
@@ -97,12 +101,13 @@ function drawMarkers(){
   const p=st.waypoints[i],marker=L.marker([p.lat,p.lon],{draggable:true,icon:markerIcon(i,st.waypoints.length),zIndexOffset:1500}).addTo(st.markerLayer);
   marker.bindTooltip(i===0?'Start':i===st.waypoints.length-1?'End':'Waypoint '+(i+1),{direction:'top',offset:[0,-11]});
   marker.on('dragend',()=>{
-   const v=marker.getLatLng();st.waypoints[i]={lat:v.lat,lon:v.lng};drawMarkers();deferManual();
+   const v=marker.getLatLng();st.waypoints[i]={...st.waypoints[i],lat:v.lat,lon:v.lng};
+   drawMarkers();if(!st.traceOn)deferManual();
   });
   marker.on('contextmenu',e=>{
    L.DomEvent.stopPropagation(e);
    if(st.waypoints.length<=2){status('Use Undo or Clear to remove a route endpoint.');return;}
-   st.waypoints.splice(i,1);drawMarkers();deferManual();message('Waypoint removed.');
+   st.waypoints.splice(i,1);drawMarkers();if(!st.traceOn)deferManual();message('Waypoint removed.');
   });
  }
 }
@@ -376,7 +381,8 @@ async function manualBuild(){
 function undo(){
  if(st.mode==='draw'&&st.waypoints.length){
   st.waypoints.pop();drawMarkers();
-  if(st.waypoints.length>=2)deferManual();
+  if(st.traceOn)status('Trace point removed. Confirm the remaining trail points in Discover.');
+  else if(st.waypoints.length>=2)deferManual();
   else clearRoute(false);
   return;
  }
@@ -749,7 +755,8 @@ function toggleTrace(){
  st.traceOn=!st.traceOn;
  if(st.traceOn){
   if(st.straight){st.straight=false;$('straightToggle').checked=false;}
-  if(st.mode!=='draw')setMode('draw',true);
+  if(st.mode!=='draw')setMode('draw',false);
+  st.waypoints=[];st.markerLayer.clearLayers();
   switchTab('build');
   status('Trace mode: click several points along the narrow trail. These links will stay in the route as unverified manual segments. Click Finish tracing when done.');
   message('Trace active. Click along the skinny trail; each connection is a manual sketch.',7000);
