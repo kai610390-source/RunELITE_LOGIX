@@ -37,7 +37,7 @@ function material(t,review,key){
  const tag=MATERIAL[(t.surface||'').trim().toLowerCase()];
  return tag?{type:tag,evidence:'osm'}:null;
 }
-function graphFromElements(elements,reviews={},preference='both'){
+function graphFromElements(elements,reviews={},preference='both',connectors=[]){
  const nodes=new Map(),adj=new Map(),edges=[],byId=new Map();
  for(const e of elements)if(e.type==='node'){
   const lat=Number(e.lat),lon=Number(e.lon),id=Number(e.id);
@@ -61,6 +61,42 @@ function graphFromElements(elements,reviews={},preference='both'){
    edges.push(e);byId.set(id,e);
    if(!adj.has(a))adj.set(a,[]);
    if(!adj.has(b))adj.set(b,[]);
+   adj.get(a).push({to:b,edge:e});adj.get(b).push({to:a,edge:e});
+  }
+ }
+ // Add only trail sketches the user explicitly confirmed as gravel/dirt and accessible.
+ // Endpoint snapping to eligible OSM trail nodes is small (8 m); this does NOT
+ // bridge separate paved roads or automatically certify paths seen in images.
+ let manualNode=-1000000000;
+ function nearest(point){
+  let best=null,delta=8;
+  for(const id of adj.keys()){
+   const p=nodes.get(id);if(!p)continue;
+   const dist=meters(point,p);
+   if(dist<delta){delta=dist;best=id;}
+  }
+  return best;
+ }
+ function ensureNode(point,isEnd){
+  if(isEnd){const existing=nearest(point);if(existing!==null)return existing;}
+  const id=manualNode--;nodes.set(id,{lat:point.lat,lon:point.lon});
+  if(!adj.has(id))adj.set(id,[]);return id;
+ }
+ for(const item of (Array.isArray(connectors)?connectors:[]).slice(0,100)){
+  if(!item?.confirmed||!item.accessReviewed||!permitted.has(item.label))continue;
+  if(!Array.isArray(item.points)||item.points.length<2||item.points.length>100)continue;
+  const points=item.points.map(p=>({lat:Number(p[0]),lon:Number(p[1])}));
+  if(!points.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Math.abs(p.lat)<=85&&Math.abs(p.lon)<=180))continue;
+  let total=0;for(let i=1;i<points.length;i++)total+=meters(points[i-1],points[i]);
+  if(total<5||total>2000)continue;
+  const ids=points.map((p,i)=>ensureNode(p,i===0||i===points.length-1));
+  for(let i=1;i<ids.length;i++){
+   if(ids[i-1]===ids[i])continue;
+   const a=ids[i-1],b=ids[i],pa=nodes.get(a),pb=nodes.get(b),length=meters(pa,pb);
+   if(length<.5||length>350)continue;
+   const e={a,b,id:'manual:'+item.id+':'+i,wayId:item.id,
+    material:item.label,evidence:'reviewed',length,name:'User-confirmed trail connection'};
+   edges.push(e);byId.set(e.id,e);
    adj.get(a).push({to:b,edge:e});adj.get(b).push({to:a,edge:e});
   }
  }
@@ -273,9 +309,9 @@ async function load(center,miles,{fetcher=fetch,timeout=19500}={}){
   return data.elements;
  }finally{clearTimeout(timer);}
 }
-function buildFromData(elements,options,reviews={}){
+function buildFromData(elements,options,reviews={},connectors=[]){
  const {center,material:preferred='both',miles=5,shape='loop'}=options;
- const graph=graphFromElements(elements,reviews,preferred);
+ const graph=graphFromElements(elements,reviews,preferred,connectors);
  const comps=components(graph);
  const picked=pickStart(graph,center,comps);
  if(!picked)throw Error('No connected, access-permitted gravel/dirt paths near the map center. Try another location or label a missing trail section in the Surface Trainer.');
@@ -299,9 +335,9 @@ function buildFromData(elements,options,reviews={}){
   tagged:graph.edges.filter(e=>e.evidence==='osm').length,
   reviewed:graph.edges.filter(e=>e.evidence==='reviewed').length};
 }
-function routeBetweenData(elements,waypoints,{material:preferred='both',reviews={}}={}){
+function routeBetweenData(elements,waypoints,{material:preferred='both',reviews={},connectors=[]}={}){
  if(!Array.isArray(waypoints)||waypoints.length<2||waypoints.length>16)throw Error('Use 2–16 map points.');
- const graph=graphFromElements(elements,reviews,preferred);
+ const graph=graphFromElements(elements,reviews,preferred,connectors);
  if(!graph.edges.length)throw Error('No qualified gravel/dirt paths in this map area.');
  const snapped=[];
  for(const point of waypoints){
@@ -327,20 +363,20 @@ function routeBetweenData(elements,waypoints,{material:preferred='both',reviews=
  const route=routeFromWalk(graph,walk,'Gravel/dirt waypoint route','point-to-point',total);
  return {route,graph,note:'Waypoints were snapped only to connected, mapped gravel/dirt or user-confirmed trail sections. No paved connector was inserted.'};
 }
-async function planBetween(points,{material='both',reviews={},fetcher=fetch}={}){
+async function planBetween(points,{material='both',reviews={},connectors=[],fetcher=fetch}={}){
  const lat=points.reduce((sum,p)=>sum+p.lat,0)/points.length;
  const lon=points.reduce((sum,p)=>sum+p.lon,0)/points.length;
  let length=0;
  for(let i=1;i<points.length;i++)length+=meters(points[i-1],points[i]);
  const elements=await load({lat,lon},Math.min(25,Math.max(1,length/MI)),{fetcher});
- return routeBetweenData(elements,points,{material,reviews});
+ return routeBetweenData(elements,points,{material,reviews,connectors});
 }
-async function plan(options,{fetcher=fetch,reviews={}}={}){
+async function plan(options,{fetcher=fetch,reviews={},connectors=[]}={}){
  const {lat,lon,miles,material:preferred='both'}=options;
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(miles)||
     miles<.2||miles>25)throw Error('Pick a valid map area and route distance.');
  const elements=await load({lat,lon},miles,{fetcher});
- return buildFromData(elements,{center:{lat,lon},material:preferred,miles,shape:options.shape},reviews);
+ return buildFromData(elements,{center:{lat,lon},material:preferred,miles,shape:options.shape},reviews,connectors);
 }
 window.SurfaceStrideStrictSoft={plan,planBetween,buildFromData,_test:{routeBetweenData,
   graphFromElements,components,shortest,pathTo,findLoop,outBack,material,keyFor,routeFromWalk,load,access
