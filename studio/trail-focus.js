@@ -6,7 +6,7 @@
 'use strict';
 function corridor(data,x,y,dx,dy){
  const w=data.width,h=data.height,rgba=data.data,nx=-dy,ny=dx;
- let cLight=0,sLight=0,cGreen=0,sGreen=0,valid=0;
+ let cLight=0,cLight2=0,sLight=0,cGreen=0,sGreen=0,lGreen=0,rGreen=0,synchronous=0,valid=0;
  const sample=(px,py)=>{
   const ix=Math.round(px),iy=Math.round(py);
   if(ix<2||iy<2||ix>=w-2||iy>=h-2)return null;
@@ -17,20 +17,24 @@ function corridor(data,x,y,dx,dy){
   const px=x+dx*t,py=y+dy*t;
   const c=sample(px,py),l=sample(px+nx*13,py+ny*13),r=sample(px-nx*13,py-ny*13);
   if(!c||!l||!r)continue;
-  cLight+=c.l;sLight+=(l.l+r.l)/2;
+  cLight+=c.l;cLight2+=c.l*c.l;sLight+=(l.l+r.l)/2;
   cGreen+=c.green;sGreen+=(l.green+r.green)/2;
+  lGreen+=l.green;rGreen+=r.green;
+  if(l.green&&r.green&&!c.green)synchronous++;
   valid++;
  }
  if(valid<10)return {passes:false,score:-1,contrast:0,greenContrast:0};
  const contrast=Math.abs(cLight-sLight)/valid;
  const greenContrast=(sGreen-cGreen)/valid;
+ const together=synchronous/valid;
+ const centerStd=Math.sqrt(Math.max(0,cLight2/valid-(cLight/valid)**2));
  const brightCenter=(cLight-sLight)/valid;
  // Require linear contrast with vegetation flanking the corridor,
  // or strong contrast plus a ground-like center. This rejects uniform roofs.
- const passes=contrast>.07&&(greenContrast>.17||contrast>.25);
+ const passes=contrast>.07&&greenContrast>.17&&together>.53&&centerStd<.15;
  const score=contrast*2.1+Math.max(0,greenContrast)*.8+
    Math.max(0,brightCenter)*.2;
- return {passes,score,contrast,greenContrast,brightCenter};
+ return {passes,score,contrast,greenContrast,brightCenter,together,centerStd};
 }
 function unitDirection(dir){
  if(!dir)return {x:0,y:1};
