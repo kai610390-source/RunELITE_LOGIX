@@ -24,9 +24,9 @@ function mapArea(map){
  // Native NAIP detail is finite; 0.7 m paths cannot be recovered in a
  // 3 km-wide image. Keep each inspection patch roughly 260-500m wide.
  const actualW=ne.x-sw.x,actualH=ne.y-sw.y;
- const w=Math.min(actualW,1350),h=Math.min(actualH,1350);
- const cols=actualW<520?1:actualW<900?2:3;
- const rows=actualH<520?1:actualH<900?2:3;
+ const w=Math.min(actualW,1900),h=Math.min(actualH,1900);
+ const cols=Math.min(4,Math.max(1,Math.ceil(w/470)));
+ const rows=Math.min(4,Math.max(1,Math.ceil(h/470)));
  const cells=[];
  for(let iy=0;iy<rows;iy++)for(let ix=0;ix<cols;ix++){
   const left=center.x-w/2+w*ix/cols,
@@ -35,8 +35,10 @@ function mapArea(map){
    top=center.y-h/2+h*(iy+1)/rows;
   cells.push({left,right,bottom,top});
  }
- return {cells,clipped:actualW>1350||actualH>1350,
-  total:cells.length,width:Math.round(actualW),height:Math.round(actualH)};
+ return {cells,clipped:actualW>1900||actualH>1900,
+  total:cells.length,width:Math.round(actualW),height:Math.round(actualH),
+  inspectedBounds:{left:center.x-w/2,right:center.x+w/2,
+   bottom:center.y-h/2,top:center.y+h/2}};
 }
 function pixelToEarth(x,y,box,size){
  return earth(box.left+(box.right-box.left)*x/size,
@@ -51,13 +53,15 @@ function mergeCandidates(items,max=36){
  };
  for(const item of items){
   if(accepted.length>=max)break;
-  const redundant=accepted.some(other=>meterDistance(item.center,other.center)<18);
+  const redundant=accepted.some(other=>
+   other.kind===item.kind&&meterDistance(item.center,other.center)<18);
   if(!redundant)accepted.push(item);
  }
  return accepted;
 }
-async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
+async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const imagery=window.SurfaceStrideImagery,trail=window.SurfaceStrideTrailFocus;
+ const surfaceScout=window.SurfaceStrideSurfaceScout,vision=window.SurfaceStrideVision;
  if(!imagery?.capture||!trail?.screenCandidates)
   throw Error('Aerial imagery or trail detector unavailable. Refresh the Studio.');
  let area;
@@ -68,12 +72,13 @@ async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
   area={cells:[{left:p.x-half,right:p.x+half,bottom:p.y-half,top:p.y+half}],
    total:1,clipped:false,width:540,height:540};
  }else throw Error('No map location to scan');
- const candidates=[],errors=[],size=448;
- const boxes=area.cells.slice(0,Math.max(1,Math.min(9,maxPatches)));
+ const candidates=[],regions=[],errors=[],size=448;
+ const boxes=area.cells.slice(0,Math.max(1,Math.min(16,maxPatches)));
  let completed=0,nextIndex=0;
  const progress=()=>{
   if(typeof onProgress==='function')onProgress({
    done:completed,total:boxes.length,candidates:candidates.length,
+   regionCount:regions.length,
    errorCount:errors.length,clipped:area.clipped
   });
  };
@@ -84,16 +89,28 @@ async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
    // Limit scanning to actual aerial detail instead of interpolating pixels.
    const scale=Math.max(box.right-box.left,box.top-box.bottom)/size;
    if(scale>2.1){errors.push('Pixel scale too low for skinny trails');return;}
-   const found=trail.screenCandidates(image.raster,{maxCandidates:10});
+   const found=trail.screenCandidates(image.raster,{maxCandidates:14});
    for(const spot of found){
     const center=pixelToEarth(spot.x,spot.y,box,size);
     const step=Math.min(20,Math.max(8,30/Math.max(1,scale)));
     const a=pixelToEarth(spot.x-spot.dx*step,spot.y-spot.dy*step,box,size);
     const b=pixelToEarth(spot.x+spot.dx*step,spot.y+spot.dy*step,box,size);
-    candidates.push({a,b,center,score:spot.score,
+    candidates.push({a,b,center,score:spot.score,category:'trail',
      kind:'possible trail corridor',source:'Aerial visual suggestion (unverified)',
      imagerySource:image.source,metersPerPixel:scale,
      detection:'two-sided vegetation + continuous narrow line'});
+   }
+   if(surfaceScout?.inspect){
+    const observations=surfaceScout.inspect(image.raster,{
+     maxRegions:16,vision
+    });
+    for(const p of observations){
+     const center=pixelToEarth(p.x,p.y,box,size);
+     regions.push({center,kind:p.kind,category:p.kind,
+      score:p.score,reason:p.reason,modelGuess:p.modelGuess,
+      metersPerPixel:scale,imagerySource:image.source,
+      source:'Aerial appearance candidate (unverified)'});
+    }
    }
   }catch(error){errors.push(error?.message||String(error));}
   finally{completed++;progress();}
@@ -106,14 +123,22 @@ async function scan(mapOrCenter,{onProgress,maxPatches=9}={}){
  }
  const workers=Array.from({length:Math.min(3,boxes.length)},()=>worker());
  await Promise.all(workers);
- const out=mergeCandidates(candidates,36);
- const stats={found:out.length,scanned:boxes.length,failed:errors.length,
-  clipped:area.clipped,source:'NAIP/USGS public aerial imagery'};
+ const out=mergeCandidates(candidates,96);
+ // Trail candidates are lines; land-cover candidates are point observations.
+ // Keep both collections separate so no unverified area becomes a route.
+ const cover=mergeCandidates(regions,180);
+ const counts=surfaceScout?.tally?surfaceScout.tally(cover):{};
+ const stats={found:out.length,regions:cover.length,counts,
+  scanned:boxes.length,failed:errors.length,
+  clipped:area.clipped,inspectedBounds:area.inspectedBounds||null,
+  source:'NAIP/USGS public aerial imagery'};
  if(typeof onProgress==='function')onProgress({done:boxes.length,total:boxes.length,
-  candidates:out.length,errorCount:errors.length,clipped:area.clipped});
+  candidates:out.length,regionCount:cover.length,
+  errorCount:errors.length,clipped:area.clipped});
  if(!out.length&&errors.length===boxes.length)throw Error('All aerial scan patches failed. '+
   errors[0]);
  out.stats=stats;
+ out.regions=cover;
  return out;
 }
 window.SurfaceStrideAerial={scan,_test:{merc,earth,mapArea,pixelToEarth,mergeCandidates}};
