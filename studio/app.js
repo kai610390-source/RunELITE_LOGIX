@@ -5,11 +5,14 @@ const E=window.SurfaceStrideStudioEngine;
 const TAGS=window.SurfaceStrideSurfaceTags;
 const SHARE=window.SurfaceStrideShare;
 const WALK=window.SurfaceStrideWalking;
+const STRICT=window.SurfaceStrideStrictSoft;
+const VISION=window.SurfaceStrideVision;
 const $=id=>document.getElementById(id);
 const COLORS={grass:'#50d487',dirt:'#b7825a',gravel:'#efb061',paved:'#9db6b0',track:'#d08cbd',unknown:'#c6cbd0',possible:'#f7da74'};
 const KM=1.609344,MI=1609.344;
 const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,preference:'soft',
  terrain:'any',quiet:true,waypoints:[],straight:false,reroll:0,working:false,
+ strictSoft:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
  aerialOn:false,aerialCandidates:[],aerialBusy:false,
  routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
@@ -200,10 +203,13 @@ function surfaceSummary(){
   strong.textContent=pct.toFixed(0)+'%';span.textContent=key.charAt(0).toUpperCase()+key.slice(1);
   item.append(strong,span);breakdown.append(item);
  }
- $('surfaceConfidence').textContent=(r.surface_data_status==='scanned'?
-  (r.tagged_percent||0)+'% OSM-tagged · '+(r.inferred_percent||0)+'% inferred · '+(r.unknown_percent||0)+'% unknown':
-  'Surface lookup pending or unavailable. Unknown does not mean paved.')+
-  ((r.manualSections||[]).length?' · Dashed gold = reviewed sketch, not a verified surface.':'');
+ $('surfaceConfidence').textContent=r.strictSoft?
+   'NO PAVED CONNECTORS · '+r.tagged_percent+'% OSM-tagged · '+r.reviewed_percent+
+     '% human-reviewed · 0% surface unknown':
+   ((r.surface_data_status==='scanned'?
+    (r.tagged_percent||0)+'% OSM-tagged · '+(r.inferred_percent||0)+'% inferred · '+(r.unknown_percent||0)+'% unknown':
+    'Surface lookup pending or unavailable. Unknown does not mean paved.')+
+    ((r.manualSections||[]).length?' · Dashed gold = reviewed sketch, not a verified surface.':''));
 }
 function updateStats(){
  const r=st.route;if(!r)return;
@@ -212,6 +218,12 @@ function updateStats(){
  $('routeGain').textContent=r.elevation_gain_ft===undefined?'—':r.elevation_gain_ft.toLocaleString();
  $('bottomRouteName').textContent=r.title||'Running route';
  surfaceSummary();renderDirections();
+ const evidence=$('routeEvidence');
+ evidence.hidden=!r.strictSoft;
+ if(r.strictSoft){
+  evidence.classList.toggle('warning',Math.abs(r.distance_miles-st.miles)>Math.max(.5,st.miles*.18));
+  evidence.textContent=r.strictNote||'Connected gravel/dirt segments only. Recorded tags and reviewed labels are not physical ground truth.';
+ }
 }
 function renderDirections(){
  const directions=st.route?.directions||[],box=$('directionsView');box.replaceChildren();
@@ -261,7 +273,7 @@ function analyzeRoute(routeVersion){
  const elevated=E.elevation(r).then(info=>{
   if(versionsMatch())elevationChart(info);
  }).catch(err=>{if(versionsMatch())elevationChart(null);});
- const surface=TAGS?.enrich?TAGS.enrich(r,{preference:st.preference},progress=>{
+ const surface=!r.strictSoft&&TAGS?.enrich?TAGS.enrich(r,{preference:st.preference},progress=>{
   if(!versionsMatch()||!progress.partial)return;
   // Keep this route object stable so other parallel updates are not lost.
   Object.assign(r,progress.partial);
@@ -274,7 +286,8 @@ function analyzeRoute(routeVersion){
   $('analysisStatus').textContent=r.tagged_percent+'% tagged · '+r.unknown_percent+'% unknown';
  }).catch(err=>{if(versionsMatch())$('analysisStatus').textContent='Some surfaces unknown · GPX ready';}):Promise.resolve();
  Promise.allSettled([elevated,surface]).then(()=>{
-  if(versionsMatch())status('Route ready. Inspect the surface colors, edit waypoints, or export GPX for COROS.');
+  if(versionsMatch())status(r.strictSoft?(r.strictNote||'Strict gravel/dirt route ready; no pavement was inserted.'):
+  'Route ready. Inspect the surface colors, edit waypoints, or export GPX for COROS.');
  });
 }
 function showRoute(route,{preserveView=false,analyze=true}={}){
@@ -301,12 +314,20 @@ function offset(p,bearing,meters){
 async function autoGenerate(){
  if(st.working||!st.map)return;
  setBusy(true,'Calculating route…');
- status('Connecting walking routes. Satellite surfaces are classified after the route is drawn.');
+ status(st.strictSoft?'Connecting only mapped or user-confirmed gravel/dirt trails; no road fallback.':
+  'Connecting walking routes. Satellite surfaces are classified after the route is drawn.');
  try{
   const center=centerForAuto();
   const base=st.reroll?offset(center,(st.reroll*131)%360,Math.min(470,90+st.reroll*43)):center;
-  let route;
-  if(st.shape==='point-to-point'){
+  let route,strictNote='';
+  if(st.strictSoft){
+   if(!STRICT)throw Error('Strict surface router did not load. Refresh the Studio.');
+   const data=await STRICT.plan({
+    lat:base.lat,lon:Number.isFinite(base.lon)?base.lon:base.lng,
+    miles:st.miles,shape:st.shape,material:st.softMaterial
+   },{reviews:VISION?.getReviews?.()||{}});
+   route=data.route;strictNote=data.note;route.strictNote=data.note;
+  }else if(st.shape==='point-to-point'){
    const a={lat:base.lat,lon:base.lng},b=offset(base,(st.reroll*61+55)%360,st.miles*MI*.85);
    route=await E.snapRoute([a,b]);route.mode='point-to-point';route.title='Point-to-point route';
   }else{
@@ -318,8 +339,11 @@ async function autoGenerate(){
   }
   st.waypoints=[];st.markerLayer.clearLayers();
   showRoute(route);
-  status('Suggested '+route.distance_miles.toFixed(2)+'-mile route. Surface tags are loading separately.');
- }catch(err){status('Could not generate route: '+(err?.message||err));message('Route unavailable. Try another area or draw waypoints.',6500);}
+  status(route.strictSoft?strictNote:
+    'Suggested '+route.distance_miles.toFixed(2)+'-mile route. Surface tags are loading separately.');
+ }catch(err){status('Could not generate route: '+(err?.message||err));
+   message(st.strictSoft?'No connected gravel/dirt-only route here. Try labeling nearby paths or moving the map.':
+    'Route unavailable. Try another area or draw waypoints.',7500);}
  finally{setBusy(false);}
 }
 function deferManual(){lastRouteRequest++;clearTimeout(manualTimer);manualTimer=setTimeout(manualBuild,550);}
@@ -328,16 +352,24 @@ async function manualBuild(){
  if(st.working){clearTimeout(manualTimer);manualTimer=setTimeout(manualBuild,550);return;}
  const copy=st.waypoints.map(x=>({...x})),request=lastRouteRequest;
  const hybrid=!st.straight&&copy.some(x=>x.manualToHere);
- setBusy(true,st.straight?'Drawing manual line…':hybrid?'Connecting small trails…':'Snapping route…');
+ setBusy(true,st.strictSoft?'Connecting gravel/dirt waypoints…':st.straight?'Drawing manual line…':hybrid?'Connecting small trails…':'Snapping route…');
  try{
-  const route=st.straight?E.directRoute(copy):hybrid?await E.hybridRoute(copy):await E.snapRoute(copy);
+  let route;
+  if(st.strictSoft){
+   if(st.straight||hybrid)throw Error('Strict mode cannot claim an unmapped sketch is gravel/dirt. Turn off Strict mode for sketches, or review each mapped segment first.');
+   if(!STRICT)throw Error('Strict router missing. Refresh the Studio.');
+   const data=await STRICT.planBetween(copy,{material:st.softMaterial,reviews:VISION?.getReviews?.()||{}});
+   route=data.route;route.strictNote=data.note;
+  }else route=st.straight?E.directRoute(copy):hybrid?await E.hybridRoute(copy):await E.snapRoute(copy);
   if(request!==lastRouteRequest||st.mode!=='draw')return;
-  route.title=st.straight?'Off-road sketch':hybrid?'Connected small trails':'Custom running route';
+  route.title=st.strictSoft?'Connected gravel/dirt waypoints':st.straight?'Off-road sketch':hybrid?'Connected small trails':'Custom running route';
   route.mode='point-to-point';
   showRoute(route,{preserveView:true});
-  status('Route edited. Drag a marker to reroute; right-click to delete a waypoint.');
+  status(route.strictSoft?'Connected gravel/dirt-only waypoints. No paved connector used.':
+   'Route edited. Drag a marker to reroute; right-click to delete a waypoint.');
  }catch(err){
-  status('Could not join those points: '+(err?.message||err)+'. Try closer waypoints or enable manual straight lines.');
+  status('Could not join those points: '+(err?.message||err)+
+   (st.strictSoft?'. No paved road was used to fill the gap.':'. Try closer waypoints or enable manual straight lines.'));
  }finally{setBusy(false);}
 }
 function undo(){
