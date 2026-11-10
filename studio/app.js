@@ -475,16 +475,16 @@ function trainerCounts(){
  const c=VISION.count(),total=Object.values(c).reduce((a,b)=>a+b,0);
  box.textContent='Examples saved only in this browser: '+total+
   ' · gravel '+c.gravel+' · dirt '+c.dirt+' · grass '+c.grass+
-  ' · paved '+c.paved+' · unknown '+c.unknown+
+  ' · paved '+c.paved+' · trees '+c.tree+' · roofs '+c.building+' · unknown '+c.unknown+
   ' · '+VISION.reviewedCount()+' mapped sections human-reviewed.';
 }
 function predictionLine(sample){
  if(!VISION||!sample)return;
  const p=VISION.predict(sample.vector);
- $('trainerPrediction').textContent=p.trained?
-  'Model suggestion: '+(p.label==='paved'?'paved / road':p.label)+
-  ' ('+Math.round(p.confidence*100)+'% vote agreement). UNVERIFIED · you must decide the true surface.':
-  'Not trained yet. '+p.reason;
+ $('trainerPrediction').textContent=p.hasGuess?
+  'Tentative model guess: '+(p.label==='paved'?'paved road':p.label==='tree'?'tree canopy':p.label==='building'?'building roof':p.label)+
+  ' ('+Math.round(p.confidence*100)+'% example-vote agreement, NOT validated accuracy). Confirm or correct it.':
+  'No guess yet. '+p.reason;
 }
 function showTrainerSample(sample,segment){
  st.trainerSample=sample;st.trainerSegment=segment||null;

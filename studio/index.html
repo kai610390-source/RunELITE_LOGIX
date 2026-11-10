@@ -115,7 +115,7 @@
           <div class="section-label"><span>◎</span> Train surface recognition</div>
           <a class="secondary-wide" style="display:block;text-decoration:none;text-align:center;background:#216f47;color:white;border-color:#216f47" href="./train.html?v=guess-correct-v10">Open full-page surface trainer ↗</a>
           <p class="hint">The trainer guesses each surface first; confirm it or correct it, including tree canopy and rooftops. Every response helps it learn.</p>
-          <p class="hint">Zoom into a trail with public NAIP imagery, then label what you know: gravel, dirt, grass, paved road or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing. Aim for dozens of correctly labeled Austin-area examples per class before relying on predictions.</p>
+          <p class="hint">Zoom into a trail with public NAIP imagery, then label gravel, dirt, grass, paved road, tree canopy, building roof or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing. Aim for dozens of correctly labeled Austin-area examples per class before relying on predictions.</p>
           <button class="secondary-wide" id="trainMapCenterBtn">Inspect surface at map center ↗</button>
           <button class="secondary-wide" id="trainRandomBtn">Random aerial sample near map center ↗</button>
           <button class="secondary-wide" id="trainUploadBtn">Add my own licensed training image</button>
@@ -129,6 +129,8 @@
               <button data-training-label="dirt">Dirt</button>
               <button data-training-label="grass">Grass</button>
               <button data-training-label="paved">Paved road</button>
+              <button data-training-label="tree">Tree canopy</button>
+              <button data-training-label="building">Building roof</button>
               <button data-training-label="unknown">Unknown</button>
             </div>
             <p class="hint" id="trainerStatus">Click the true surface type to teach the classifier.</p>
@@ -217,7 +219,7 @@
 <script src="./engine.js?build=surface-lab-v4b-20261109"></script>
 <script src="./strict-soft.js?build=surface-lab-v4b-20261109"></script>
 <script src="./imagery-providers.js?build=imagery-fallback-v9"></script>
-<script src="./surface-vision.js?build=imagery-fallback-v9"></script>
-<script src="./app.js?build=surface-trainer-v5-20261109"></script>
+<script src="./surface-vision.js?build=guess-correct-v10"></script>
+<script src="./app.js?build=guess-correct-v10"></script>
 </body>
 </html>
