@@ -30,6 +30,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 .center-target:after{top:9px;left:-10px;width:40px;height:2px}
 .center-target span{display:block;position:absolute;left:7px;top:7px;width:6px;height:6px;border-radius:50%;background:#fadc75;z-index:2}
 .image-frame.has-image .center-target{display:block}
+.image-frame.has-image{cursor:crosshair}
 .placeholder{text-align:center;padding:20px 35px;color:#5e7e65;font-size:13px;line-height:1.7}
 .image-frame.has-image .placeholder{display:none}
 .spinner{width:35px;height:35px;border-radius:100%;border:4px solid #b7d6c0;border-top-color:#27754b;display:block;margin:0 auto 15px;animation:spin 900ms linear infinite}
@@ -65,10 +66,10 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 </style>
 </head>
 <body>
-<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V7</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
+<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V8</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
 <main class="container">
  <div class="topline">
-  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">A random zoomed-in aerial image from the Austin area appears automatically. Identify the surface under the center marker.</p></div>
+  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">The trainer searches random Austin aerial images for clear ground and puts the target there, rather than on trees. Label the surface beneath the target.</p></div>
   <div class="counter"><b id="totalCount">0</b><span>Labels collected</span></div>
  </div>
  <div class="layout">
@@ -77,8 +78,8 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    <div id="imageFrame" class="image-frame">
     <div id="placeholder" class="placeholder"><span class="spinner"></span>Finding your first random close-up…</div>
     <img id="sampleImage" alt="Random zoomed-in public aerial image near Austin; choose its actual surface below">
-    <div class="center-target" aria-hidden="true"><span></span></div>
-    <div class="image-note" id="scaleNote">Approx. 220 meters across · Aerial imagery</div>
+    <div class="center-target" id="targetMarker" aria-hidden="true"><span></span></div>
+    <div class="image-note" id="scaleNote">Approx. 220 meters across · Suggested clear-ground target</div>
    </div>
    <div class="toolbar">
     <div class="toolbar-group">
@@ -92,7 +93,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    <div class="card-head"><strong>Classify the image</strong><span class="chip">YOUR ANSWER TRAINS IT</span></div>
    <div class="panel-body">
     <h2 class="bigquestion">What's the surface?</h2>
-    <p class="help">Label the ground surface underneath the center target—not everything in the image. The next random image loads automatically. Choose Not sure if the target is a roof, water, or unclear.</p>
+    <p class="help">Label the ground underneath the target, not the whole image. If the target misses clear ground, click the correct spot in the image or skip it. The next random image loads automatically.</p>
     <div class="label-buttons">
      <button type="button" data-label="gravel"><span class="swatch" style="background:#d9b480"></span>Gravel</button>
      <button type="button" data-label="dirt"><span class="swatch" style="background:#b38460"></span>Dirt</button>
@@ -122,9 +123,10 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    </div>
   </section>
  </div>
- <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. It does not automatically verify a surface or add a trail to strict routing. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
+ <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
 </main>
-<script src="./surface-vision.js?v=context-v7"></script>
+<script src="./ground-picker.js?v=clear-ground-v8"></script>
+<script src="./surface-vision.js?v=clear-ground-v8"></script>
 <script>
 (function(){
 'use strict';
@@ -180,32 +182,51 @@ function showLoading(){
 }
 async function loadRandom(reuse=false){
  const V=window.SurfaceStrideVision;
- if(!V){message('Surface model script did not load. Please refresh.','error');return;}
+ if(!V||!window.SurfaceStrideGroundPicker){
+  message('Open-ground image scanner did not load. Refresh this page.','error');return;
+ }
  if(state.busy)return;
  clearTimeout(sleepTimer);sleepTimer=null;
- const position=reuse&&state.lastCoords?state.lastCoords:randomLocation();
- state.lastCoords=position;state.sample=null;state.busy=true;
+ state.sample=null;state.busy=true;
  const version=++state.version;
  $('skipButton').disabled=true;setLabelsDisabled(true);
  showLoading();
  try{
-  const sample=await V.capture(position.lat,position.lon,{spanMeters:state.span,px:640,timeout:13000});
+  let sample=null,position=null,noGround=0;
+  for(let attempt=0;attempt<4;attempt++){
+   position=(reuse&&attempt===0&&state.lastCoords)?state.lastCoords:randomLocation();
+   try{
+    sample=await V.capture(position.lat,position.lon,{
+     spanMeters:state.span,px:640,timeout:13000,preferOpenGround:true
+    });
+    break;
+   }catch(err){
+    if(err?.code!=='NO_OPEN_GROUND')throw err;
+    noGround++;
+    message('That image is mostly trees or unclear ground. Checking another Austin location ('+
+      (attempt+1)+'/4)…','loading');
+   }
+  }
+  if(!sample)throw Error('No clear ground found in '+noGround+
+   ' Austin images. Try Skip or use your own ground photo.');
   if(version!==state.version)return;
+  state.lastCoords=position;
   state.sample=sample;state.sampleNo++;
   $('sampleImage').src=sample.preview;
+  $('targetMarker').style.left=(sample.targetX*100).toFixed(1)+'%';
+  $('targetMarker').style.top=(sample.targetY*100).toFixed(1)+'%';
   $('imageFrame').classList.add('has-image');
-  $('sampleTitle').textContent='Random surface #'+state.sampleNo;
+  $('sampleTitle').textContent='Clear-ground candidate #'+state.sampleNo;
   $('locationLabel').textContent=position.zone.toUpperCase();
-  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m across · label the center target';
-  message('Image ready. Choose the surface type; the next random image will load automatically.','');
+  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m across · target avoids likely tree canopy';
+  message('Open-ground spot suggested. Check the target and label it, click to move it, or skip if unclear.','');
  }catch(err){
   if(version!==state.version)return;
-  $('sampleTitle').textContent='Could not load that aerial image';
-  $('locationLabel').textContent='TRY AGAIN';
-  $('placeholder').textContent='Aerial image unavailable. Try Next image, or upload a photo you can use.';
+  $('sampleTitle').textContent='Could not find a clear aerial sample';
+  $('locationLabel').textContent='TRY ANOTHER';
+  $('placeholder').textContent='No clear open ground was found. Try Skip / next image or use your own photo.';
   $('retryButton').hidden=false;
-  message('Random aerial image failed: '+(err?.message||err)+
-   '. Try Skip / next image, or Use my own photo.','error');
+  message('Open-ground sample unavailable: '+(err?.message||err),'error');
  }finally{
   if(version===state.version){state.busy=false;$('skipButton').disabled=false;setLabelsDisabled(false);}
  }
@@ -234,6 +255,7 @@ async function importPhoto(file){
   $('sampleTitle').textContent='Your uploaded image #'+state.sampleNo;
   $('locationLabel').textContent='USER IMAGE';
   $('sampleImage').src=sample.preview;
+  $('targetMarker').style.left='50%';$('targetMarker').style.top='50%';
   $('imageFrame').classList.add('has-image');
   $('scaleNote').textContent='Your photo · crop centered';
   message('Photo ready. Choose its surface type. After labeling, a random Austin image loads.','');
@@ -251,6 +273,18 @@ function wire(){
  $('retryButton').addEventListener('click',()=>loadRandom(true));
  $('zoomIn').addEventListener('click',()=>{state.span=Math.max(110,Math.round(state.span*.72));loadRandom(true);});
  $('zoomOut').addEventListener('click',()=>{state.span=Math.min(900,Math.round(state.span*1.5));loadRandom(true);});
+ $('imageFrame').addEventListener('click',e=>{
+  if(!state.sample?._raster||state.busy)return;
+  const rect=$('sampleImage').getBoundingClientRect();
+  if(rect.width<1||rect.height<1)return;
+  try{
+   const fx=(e.clientX-rect.left)/rect.width,fy=(e.clientY-rect.top)/rect.height;
+   window.SurfaceStrideGroundPicker.place(state.sample,fx,fy);
+   $('targetMarker').style.left=(state.sample.targetX*100).toFixed(1)+'%';
+   $('targetMarker').style.top=(state.sample.targetY*100).toFixed(1)+'%';
+   message('Target moved. Label only the surface underneath the updated marker.','');
+  }catch(err){message('Could not move target: '+(err?.message||err),'error');}
+ });
  document.querySelectorAll('[data-label]').forEach(b=>b.addEventListener('click',()=>label(b.dataset.label)));
  $('uploadButton').addEventListener('click',()=>$('uploadFile').click());
  $('uploadFile').addEventListener('change',e=>importPhoto(e.target.files?.[0]));
