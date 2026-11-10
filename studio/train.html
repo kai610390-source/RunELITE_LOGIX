@@ -53,7 +53,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 .swatch{height:18px;width:18px;border-radius:6px;display:inline-block;flex:none}
 .progress{padding:14px;margin-top:20px;background:#f4f9f3;border:1px solid #e5eee2;border-radius:11px}
 .progress-title{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#60836a;font-weight:750;margin-bottom:10px}
-.count-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.count-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
 .count-box{text-align:center;border-radius:8px;background:#fff;border:1px solid #e0e9df;padding:9px 1px}
 .count-box b{display:block;color:#356d4c;font-size:18px}.count-box span{display:block;font-size:9px;color:#9cafa0;margin-top:4px}
 .notice{padding:11px 13px;border:1px solid #d3e5d5;border-radius:9px;background:#ecf6eb;color:#38714d;font-size:11px;line-height:1.6;margin:13px 0}
@@ -155,7 +155,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
  <p class="footnote"><b>Target selection:</b> Prefers mapped OpenStreetMap pedestrian paths and then checks the aerial image for a narrow visible line. Mapped trails and image lines can be inaccurate; a target is a suggestion, not evidence of surface or permission. If a trail cannot be located, click it yourself. <b>Predictions:</b> A small browser-trained nearest-neighbor model; the guesses are tentative and the vote-agreement number is not an accuracy score. Confirming or correcting a guess trains it, while trees and roofs are never valid running surfaces. <b>Image source:</b> public Texas, USDA and USGS NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
 </main>
 <script src="./ground-picker.js?v=trail-first-v11"></script>
-<script src="./trail-focus.js?v=trail-first-v11b"></script>
+<script src="./trail-focus.js?v=all-features-v15"></script>
 <script src="./mapped-trail.js?v=trail-first-v11b"></script>
 <script src="./imagery-providers.js?v=imagery-fallback-v9"></script>
 <script src="./surface-vision.js?v=all-features-v15"></script>
