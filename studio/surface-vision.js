@@ -5,7 +5,7 @@
  */
 (function(){
 'use strict';
-const R=6378137,LABELS=['gravel','dirt','grass','paved','unknown'];
+const R=6378137,LABELS=['gravel','dirt','grass','paved','tree','building','unknown'];
 const TRAIN='surfacestride.studio.vision.examples.v1';
 const REVIEWS='surfacestride.studio.vision.reviewedSegments.v1';
 const CONNECTORS='surfacestride.studio.vision.confirmedConnectors.v1';
@@ -87,32 +87,39 @@ function addExample(vector,label,{source='NAIP',lat=null,lon=null}={}){
  return count();
 }
 function predict(vector){
- if(!Array.isArray(vector)||vector.length!==24)throw Error('Invalid image features.');
+ if(!Array.isArray(vector)||vector.length!==24||!vector.every(Number.isFinite))
+  throw Error('Invalid image features.');
  const counts=count(),active=Object.entries(counts).filter(([label,n])=>n>=2);
- if(examples.length<8||active.length<2)return {
-  label:'unknown',confidence:0,trained:false,
-  reason:'Label at least 8 samples across 2 or more surface types (at least 2 of each).',
+ const enough=examples.length>=8&&active.length>=2;
+ if(!examples.length)return {
+  label:null,confidence:0,trained:false,hasGuess:false,
+  reason:'No labeled examples yet. Choose a category to teach the model its first surface.',
   counts};
  const neighbors=examples.map(x=>{
   let dd=0;
   for(let i=0;i<24;i++){
-   const a=(vector[i]-x.vector[i]);
+   const a=vector[i]-x.vector[i];
    const weight=[1.5,1.5,1.5,1.2,2.2,1.2,2.6,2.6,1.5,1.5,2,1.2][i%12];
    dd+=(a*weight)**2;
   }
   return {label:x.label,d:Math.sqrt(dd)};
- }).sort((a,b)=>a.d-b.d).slice(0,7);
+ }).sort((a,b)=>a.d-b.d).slice(0,Math.min(7,examples.length));
  const votes={};let sum=0;
- for(const v of neighbors){
-  const weight=1/(v.d+.08)**2;
-  votes[v.label]=(votes[v.label]||0)+weight;sum+=weight;
+ for(const item of neighbors){
+  const weight=1/(item.d+.08)**2;
+  votes[item.label]=(votes[item.label]||0)+weight;sum+=weight;
  }
- const [label,score]=Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
- const conf=Math.min(1,score/sum);
- const veryDifferent=neighbors[0].d>1.2;
- return {label:veryDifferent?'unknown':label,confidence:veryDifferent?0:conf,
-  trained:true,reason:veryDifferent?'Looks unlike labeled examples; review it manually.':
-   'Unvalidated local model estimate, not proof of ground surface.',counts,nearestDistance:neighbors[0].d};
+ const [choice,score]=Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
+ const agreement=sum?Math.min(1,score/sum):0;
+ const looksDifferent=neighbors[0].d>1.2;
+ if(looksDifferent)return {
+  label:'unknown',confidence:0,trained:enough,hasGuess:true,
+  reason:'This image looks unlike the labeled examples. Please correct my guess.',
+  counts,nearestDistance:neighbors[0].d};
+ return {label:choice,confidence:agreement,trained:enough,hasGuess:true,
+  reason:enough?'Tentative nearest-neighbor prediction. Vote agreement is NOT accuracy.':
+   'Early guess from only '+examples.length+' examples. Not yet validated.',
+  counts,nearestDistance:neighbors[0].d};
 }
 function review(segment,label){
  const key=surfaceKey(segment);
