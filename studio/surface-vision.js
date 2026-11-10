@@ -123,11 +123,25 @@ function predict(vector){
  const looksDifferent=nearest.d>1.2;
  // A textured dark-green center and surroundings often indicate canopy
  // rather than smooth lawn. This is an explicitly tentative fallback.
- const canopy=(vector[6]>.45&&vector[18]>.40&&vector[3]<.56&&
-  (vector[4]>.07||vector[16]>.08||vector[10]>.10||vector[22]>.10));
+ const canopy=(vector[6]>.55&&vector[18]>.55&&vector[3]<.56&&
+  (vector[4]>.055||vector[16]>.055||vector[10]>.15||vector[22]>.15));
+ // A flat gray aerial patch cannot reliably distinguish roofs from paved
+ // roads from RGB alone. Prefer asking for a correction to making up certainty.
+ const greyHardscape=(vector[5]<.115&&vector[17]<.12&&
+  vector[6]<.12&&vector[4]<.04&&vector[10]<.11&&
+  vector[3]>.32&&vector[3]<.88);
+ const roofDistance=byClass.get('building')?.[0]??Infinity;
+ const roadDistance=byClass.get('paved')?.[0]??Infinity;
  if(canopy&&choice!=='tree'&&(counts.tree===0||nearest.d>.35)){
   return {label:'tree',confidence:0,trained:enough,hasGuess:true,heuristic:true,
    reason:'Possible textured tree canopy (visual heuristic, NOT a trained or verified result).',counts};
+ }
+ if(greyHardscape&&(
+    !Number.isFinite(roofDistance)||!Number.isFinite(roadDistance)||
+    Math.abs(roofDistance-roadDistance)<.18)){
+  return {label:'unknown',confidence:0,trained:enough,hasGuess:true,heuristic:true,
+   reason:'Could be a building roof or a paved road. RGB texture alone cannot reliably separate them; please correct the category.',
+   counts};
  }
  if(looksDifferent)return {
   label:'unknown',confidence:0,trained:enough,hasGuess:true,
