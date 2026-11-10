@@ -125,7 +125,7 @@ function bridgeNetworks(graph,elements,{maxRoadMeters=240,maxConnections=110}={}
  for(let c=0;c<base.length;c++)for(const id of base[c].nodes)membership.set(id,c);
  const roadAdj=new Map();
  const pavedTypes=new Set(['asphalt','concrete','concrete:plates','paving_stones','sett','cobblestone']);
- const roads=new Set(['residential','living_street','service','pedestrian','footway','cycleway']);
+ const roads=new Set(['residential','living_street','service','pedestrian','footway','cycleway','path','track']);
  let roadEdges=0;
  for(const way of elements)if(way.type==='way'&&Array.isArray(way.nodes)){
   const t=way.tags||{};
@@ -191,8 +191,13 @@ function bridgeNetworks(graph,elements,{maxRoadMeters=240,maxConnections=110}={}
   if(added.length>=maxConnections)break;
   const signature=p.groups.join(':');
   const near=added.filter(x=>x.groupKey===signature);
-  if(near.length>=3||near.some(x=>
-   meters(nodes.get(x.a),nodes.get(p.a))<40&&meters(nodes.get(x.b),nodes.get(p.b))<40))continue;
+  if(near.length>=3||near.some(x=>{
+   const direct=meters(nodes.get(x.a),nodes.get(p.a))<40&&
+    meters(nodes.get(x.b),nodes.get(p.b))<40;
+   const reversed=meters(nodes.get(x.a),nodes.get(p.b))<40&&
+    meters(nodes.get(x.b),nodes.get(p.a))<40;
+   return direct||reversed;
+  }))continue;
   const id='road-bridge:'+added.length+':'+p.a+':'+p.b;
   if(used.has(id))continue;
   used.add(id);
@@ -671,6 +676,7 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
   const softPct=(route.soft_percent||0)/100,roadPct=(route.road_percent||0)/100;
   const deviation=Math.abs(route.distance_miles-miles)/Math.max(1,miles);
   const shapePenalty=shape==='loop'&&!choice.hasCycle?.18:0;
+  if(route.max_road_link_m>maxRoadMeters||route.road_sections>4)continue;
   const score=deviation*1.6+roadPct*2.1+
    (route.surface_percent.unknown||0)/100*.55+
    shapePenalty+choice.offset/45000;
