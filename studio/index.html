@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
 <title>SurfaceStride Studio | Surface Lab V4</title>
-<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V4 -->
+<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V4A -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -114,6 +114,7 @@
           <div class="section-label"><span>◎</span> Train surface recognition</div>
           <p class="hint">Zoom into a trail with public NAIP imagery, then label what you know: gravel, dirt, grass, paved road or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing.</p>
           <button class="secondary-wide" id="trainMapCenterBtn">Inspect surface at map center ↗</button>
+          <button class="secondary-wide" id="trainRandomBtn">Random Austin-area surface sample ↗</button>
           <button class="secondary-wide" id="trainUploadBtn">Add my own licensed training image</button>
           <input id="trainFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
           <div class="trainer-box" id="trainerBox" hidden>
@@ -131,6 +132,12 @@
           </div>
           <div id="trainerCounts" class="trainer-counts">No labeled examples yet.</div>
           <button class="secondary-wide" id="trainBatchBtn">Analyze up to 6 nearby unknown paths</button>
+          <div class="strict-type-row">
+            <button type="button" id="exportDatasetBtn">Export labels</button>
+            <button type="button" id="importDatasetBtn">Import labels</button>
+            <span class="hint">No images stored</span>
+          </div>
+          <input type="file" id="importDatasetFile" accept=".json,application/json" hidden>
           <p class="hint" id="batchStatus">Batch classifications are suggestions, never verified surfaces. Click a suggested trail and confirm its surface to add it to strict routing.</p>
           <p class="hint">Training images should be publicly reusable or your own. Do not upload or extract Google Maps imagery for model training.</p>
         </section>
