@@ -781,11 +781,20 @@ async function toggleGravel(force=false){
   $('gravelStatus').textContent='Mapped small-trail overlay hidden.';return;
  }
  const center=st.map?.getCenter();if(!center)return;
- $('gravelStatus').textContent='Searching mapped tiny paths, informal footways, and dirt/gravel trails…';
+ $('gravelStatus').textContent='Searching mapped paths and small trails across the visible map…';
  try{
-  const rows=await E.nearbyGravel(center);
+  const b=st.map.getBounds();
+  const bounds=st.zone?{
+   south:st.zone.sw.lat,north:st.zone.ne.lat,
+   west:st.zone.sw.lng,east:st.zone.ne.lng
+  }:{south:b.getSouth(),north:b.getNorth(),west:b.getWest(),east:b.getEast()};
+  const rows=await E.nearbyGravel(center,{bounds});
   drawGravel(rows);
-  message(rows.length?rows.length+' mapped trail segments shown. Click any line to inspect or add it.':
+  const meta=rows.scanMeta;
+  if(meta)$('gravelStatus').textContent+=' Inspected '+meta.tiles+' map regions'+
+   (meta.missing?' ('+meta.missing+' unavailable)':'')+
+   (meta.clipped?' · wider view clipped at 7.5 km, pan to see more':'')+'.';
+  message(rows.length?rows.length+' mapped trail segments found across the search area. Click any line to inspect.':
    'No mapped tiny paths found here. Try aerial scout or trace a visible trail.',6500);
  }catch(err){
   $('gravelStatus').textContent='Small-trail lookup failed: '+(err?.message||err);

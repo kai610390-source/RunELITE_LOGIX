@@ -154,9 +154,19 @@ function parseNative(text){
  if(!window.SurfaceStrideSurfaceTags?._test?.parseElements)throw Error('Surface library unavailable');
  return window.SurfaceStrideSurfaceTags._test.parseElements(data);
 }
-async function nearbyGravel(c){
+async function nearbyGravel(c,{bounds=null}={}){
  const lon=Number.isFinite(c.lon)?c.lon:c.lng;
  if(!Number.isFinite(lon)||!Number.isFinite(c.lat))throw Error('Map location unavailable');
+ const shared=window.SurfaceStrideStrictSoft?._test?.loadVisible;
+ const parse=window.SurfaceStrideSurfaceTags?._test?.parseElements;
+ if(bounds&&shared&&parse){
+  const loaded=await shared({lat:c.lat,lon},5,{bounds});
+  const list=parse({elements:loaded.elements});
+  const rows=list.filter(s=>['path','footway','track','bridleway','pedestrian'].includes(s.highway)||
+   ['gravel','grass','dirt','track'].includes(s.surface));
+  rows.scanMeta={tiles:loaded.total,missing:loaded.missing,clipped:loaded.region?.clipped||false};
+  return rows;
+ }
  const meters=650,dy=meters/111195,dx=meters/(111195*Math.max(.15,Math.cos(c.lat*RAD)));
  const box=[lon-dx,c.lat-dy,lon+dx,c.lat+dy].map(n=>n.toFixed(6)).join(',');
  if(overlayCache.has(box))return overlayCache.get(box);
