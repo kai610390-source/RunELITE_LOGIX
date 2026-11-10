@@ -95,31 +95,49 @@ function predict(vector){
   label:null,confidence:0,trained:false,hasGuess:false,
   reason:'No labeled examples yet. Choose a category to teach the model its first surface.',
   counts};
- const neighbors=examples.map(x=>{
+ // Compare the closest examples WITHIN each class instead of letting
+ // 8 grass examples drown out 1 corrected rooftop or tree example.
+ const byClass=new Map(),weights=[1.5,1.5,1.5,1.2,2.2,1.2,2.6,2.6,1.5,1.5,2,1.2];
+ for(const x of examples){
   let dd=0;
   for(let i=0;i<24;i++){
-   const a=vector[i]-x.vector[i];
-   const weight=[1.5,1.5,1.5,1.2,2.2,1.2,2.6,2.6,1.5,1.5,2,1.2][i%12];
-   dd+=(a*weight)**2;
+   const difference=vector[i]-x.vector[i];
+   dd+=(difference*weights[i%12])**2;
   }
-  return {label:x.label,d:Math.sqrt(dd)};
- }).sort((a,b)=>a.d-b.d).slice(0,Math.min(7,examples.length));
- const votes={};let sum=0;
- for(const item of neighbors){
-  const weight=1/(item.d+.08)**2;
-  votes[item.label]=(votes[item.label]||0)+weight;sum+=weight;
+  const d=Math.sqrt(dd);
+  if(!byClass.has(x.label))byClass.set(x.label,[]);
+  byClass.get(x.label).push(d);
  }
+ const votes={},closest=[];
+ for(const [label,ds] of byClass){
+  ds.sort((a,b)=>a-b);
+  const best=ds[0],next=ds[1]??best;
+  // One good roof/tree correction can contribute without a large class count.
+  votes[label]=.72/((best+.13)**2)+.28/((next+.13)**2);
+  closest.push({label,d:best});
+ }
+ closest.sort((a,b)=>a.d-b.d);
+ const nearest=closest[0],sum=Object.values(votes).reduce((a,b)=>a+b,0);
  const [choice,score]=Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
  const agreement=sum?Math.min(1,score/sum):0;
- const looksDifferent=neighbors[0].d>1.2;
+ const looksDifferent=nearest.d>1.2;
+ // A textured dark-green center and surroundings often indicate canopy
+ // rather than smooth lawn. This is an explicitly tentative fallback.
+ const canopy=(vector[6]>.45&&vector[18]>.40&&vector[3]<.56&&
+  (vector[4]>.07||vector[16]>.08||vector[10]>.10||vector[22]>.10));
+ if(canopy&&choice!=='tree'&&(counts.tree===0||nearest.d>.35)){
+  return {label:'tree',confidence:0,trained:enough,hasGuess:true,heuristic:true,
+   reason:'Possible textured tree canopy (visual heuristic, NOT a trained or verified result).',counts};
+ }
  if(looksDifferent)return {
   label:'unknown',confidence:0,trained:enough,hasGuess:true,
   reason:'This image looks unlike the labeled examples. Please correct my guess.',
-  counts,nearestDistance:neighbors[0].d};
+  counts,nearestDistance:nearest.d};
  return {label:choice,confidence:agreement,trained:enough,hasGuess:true,
-  reason:enough?'Tentative nearest-neighbor prediction. Vote agreement is NOT accuracy.':
-   'Early guess from only '+examples.length+' examples. Not yet validated.',
-  counts,nearestDistance:neighbors[0].d};
+  reason:enough?'Class-balanced image similarity. The displayed percentage is NOT accuracy.':
+   'Early guess from '+examples.length+' examples. Add more tree and roof corrections to improve these classes.',
+  counts,nearestDistance:nearest.d};
+
 }
 function review(segment,label){
  const key=surfaceKey(segment);
