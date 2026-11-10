@@ -309,6 +309,160 @@ async function load(center,miles,{fetcher=fetch,timeout=19500}={}){
   return data.elements;
  }finally{clearTimeout(timer);}
 }
+// The visible map (or a drawn route zone), not a center pin, now defines
+// which separate footpaths and connected trail networks are considered.
+const visibleCache=new Map();
+function scanRegion(center,miles,bounds=null){
+ const lat=center.lat,lon=center.lon,scale=111195*Math.max(.15,Math.cos(lat*R));
+ const valid=bounds&&['south','north','west','east'].every(x=>Number.isFinite(bounds[x]))&&
+  bounds.north>bounds.south&&bounds.east>bounds.west;
+ const minSide=Math.max(1900,Math.min(4000,Math.sqrt(miles)*780));
+ const viewWidth=valid?(bounds.east-bounds.west)*scale:0;
+ const viewHeight=valid?(bounds.north-bounds.south)*111195:0;
+ // A very wide view is split into at most 3x3 OSM extracts. Large views are
+ // clipped explicitly rather than making huge/rate-limited API requests.
+ const width=Math.min(7500,Math.max(minSide,viewWidth*1.1));
+ const height=Math.min(7500,Math.max(minSide,viewHeight*1.1));
+ const midLat=valid?(bounds.north+bounds.south)/2:lat;
+ const midLon=valid?(bounds.east+bounds.west)/2:lon;
+ const box={south:midLat-height/2/111195,north:midLat+height/2/111195,
+  west:midLon-width/2/scale,east:midLon+width/2/scale};
+ const cols=Math.min(3,Math.max(1,Math.ceil(width/2500)));
+ const rows=Math.min(3,Math.max(1,Math.ceil(height/2500)));
+ const cells=[];
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+  const west=box.west+(box.east-box.west)*col/cols,
+   east=box.west+(box.east-box.west)*(col+1)/cols,
+   south=box.south+(box.north-box.south)*row/rows,
+   north=box.south+(box.north-box.south)*(row+1)/rows;
+  // Tiny tile overlaps retain shared segment geometry at grid seams.
+  const pad=0.000015;
+  cells.push([west-pad,south-pad,east+pad,north+pad].map(v=>v.toFixed(6)).join(','));
+ }
+ return {bounds:box,cells,clipped:valid&&(viewWidth>7500||viewHeight>7500),
+  widthMeters:Math.round(width),heightMeters:Math.round(height),requestedBounds:valid?bounds:null};
+}
+function parseNativeArea(raw){
+ let body;
+ if(raw.trimStart().startsWith('{'))body=JSON.parse(raw);
+ else if(raw.trimStart().startsWith('<')){
+  const doc=new DOMParser().parseFromString(raw,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw Error('Invalid OSM XML');
+  const elements=[];
+  for(const n of doc.getElementsByTagName('node'))
+   elements.push({type:'node',id:Number(n.getAttribute('id')),
+    lat:Number(n.getAttribute('lat')),lon:Number(n.getAttribute('lon'))});
+  for(const w of doc.getElementsByTagName('way')){
+   const tags={};
+   for(const t of w.getElementsByTagName('tag'))tags[t.getAttribute('k')]=t.getAttribute('v');
+   elements.push({type:'way',id:Number(w.getAttribute('id')),
+    nodes:Array.from(w.getElementsByTagName('nd'),n=>Number(n.getAttribute('ref'))),tags});
+  }
+  body={elements};
+ }else throw Error('Unexpected OSM response');
+ if(!Array.isArray(body.elements))throw Error('Invalid OSM elements');
+ return body.elements;
+}
+async function loadVisible(center,miles,{bounds=null,fetcher=fetch,timeout=14500,onProgress=null}={}){
+ const region=scanRegion(center,miles,bounds),success=[],failed=[];
+ const total=region.cells.length;
+ async function cell(box){
+  const memo=visibleCache.get(box);
+  if(memo&&Date.now()-memo.time<(memo.failed?60000:18*60000)){
+   if(memo.failed)throw Error('Recently unavailable map tile');
+   return memo.elements;
+  }
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);
+  try{
+   const response=await fetcher(API+box,{
+    signal:ctrl.signal,headers:{Accept:'application/json, application/xml'}
+   });
+   if(!response.ok)throw Error('Map HTTP '+response.status);
+   const raw=await response.text();
+   if(raw.length>25000000)throw Error('Map extract too large');
+   const elements=parseNativeArea(raw);
+   visibleCache.set(box,{elements,time:Date.now(),failed:false});
+   if(visibleCache.size>50)visibleCache.delete(visibleCache.keys().next().value);
+   return elements;
+  }catch(e){
+   visibleCache.set(box,{time:Date.now(),failed:true});
+   throw e;
+  }finally{clearTimeout(timer);}
+ }
+ for(let i=0;i<region.cells.length;i+=3){
+  const cells=region.cells.slice(i,i+3);
+  const batch=await Promise.all(cells.map(async box=>{
+   try{return {elements:await cell(box),error:null};}
+   catch(error){return {elements:null,error:error?.message||String(error)};}
+  }));
+  for(const b of batch){if(b.elements)success.push(b.elements);else failed.push(b.error);}
+  if(typeof onProgress==='function')onProgress({
+   completed:Math.min(i+3,total),total,loaded:success.length,failed:failed.length
+  });
+ }
+ if(!success.length)throw Error('Could not load trail map data from any visible-area tile. The OSM map service might be blocked.');
+ const allNodes=new Map(),allWays=new Map();
+ for(const rows of success)for(const item of rows){
+  if(item.type==='node')allNodes.set(item.id,item);
+  else if(item.type==='way'){
+   const prev=allWays.get(item.id);
+   if(!prev||((item.nodes||[]).length>(prev.nodes||[]).length))allWays.set(item.id,item);
+  }
+ }
+ const elements=[...allNodes.values(),...allWays.values()];
+ if(elements.length<4)throw Error('No usable mapped path data in the visible area.');
+ return {elements,region,loaded:success.length,missing:failed.length,total};
+}
+function chooseNetworkWalk(graph,networks,center,target,shape,variant=0){
+ const candidates=[];
+ for(const comp of networks){
+  if(comp.totalLength<25)continue;
+  let closest=null,closestDist=Infinity;
+  let farthest=null,farthestDist=-1;
+  for(const id of comp.nodes){
+   const p=graph.nodes.get(id),distance=meters(center,p);
+   if(distance<closestDist){closestDist=distance;closest=id;}
+   if(distance>farthestDist){farthestDist=distance;farthest=id;}
+  }
+  if(closest!==null)candidates.push({component:comp,start:closest,distance:closestDist});
+  if(farthest!==null&&farthest!==closest&&comp.totalLength>target*.45)
+   candidates.push({component:comp,start:farthest,distance:farthestDist});
+ }
+ if(!candidates.length)return null;
+ // Sample major separate networks even when they are not near map center.
+ // Keep a few smaller local components in the pool for short distances.
+ candidates.sort((a,b)=>{
+  const ka=Math.min(a.component.totalLength,target*1.8),kb=Math.min(b.component.totalLength,target*1.8);
+  return (kb-b.distance*.13)-(ka-a.distance*.13);
+ });
+ const shortlist=candidates.slice(0,12);
+ let best=null;
+ for(let i=0;i<shortlist.length;i++){
+  const entry=shortlist[(i+(variant%shortlist.length))%shortlist.length];
+  const possible=[];
+  try{
+   if(shape==='loop'){
+    const loop=findLoop(graph,entry.start,target);
+    if(loop)possible.push({walk:loop.walk,stem:loop.stem,hasCycle:true,shape:'loop'});
+   }
+   const basic=outBack(graph,entry.start,target,shape==='loop'?'out-and-back':shape);
+   possible.push({...basic,shape:shape==='loop'?'out-and-back':shape});
+  }catch(e){/* Try another connected trail network. */}
+  for(const choice of possible){
+   if(!choice.walk?.edges?.length)continue;
+   const actual=choice.walk.edges.reduce((acc,e)=>acc+e.length,0);
+   const error=Math.abs(actual-target)/Math.max(target,1);
+   const mismatch=shape==='loop'&&!choice.hasCycle?.20:0;
+   const offsetPenalty=entry.distance/30000;
+   const score=error+mismatch+offsetPenalty;
+   if(!best||score<best.score){
+    best={...choice,score,start:entry.start,component:entry.component,
+     offset:entry.distance,actual};
+   }
+  }
+ }
+ return best;
+}
 function buildFromData(elements,options,reviews={},connectors=[]){
  const {center,material:preferred='both',miles=5,shape='loop'}=options;
  const graph=graphFromElements(elements,reviews,preferred,connectors);
