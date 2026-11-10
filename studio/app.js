@@ -55,7 +55,7 @@ function setupMap(){
   drawZone(st.zoneStart,e.latlng,true);
  });
  map.on('moveend',()=>{
-  if(!st.route)$('mapStatus').innerHTML='SATELLITE VIEW <span>·</span> '+(st.mode==='draw'?'Tap to place route points':'Generate near map center');
+  if(!st.route)$('mapStatus').innerHTML='SATELLITE VIEW <span>·</span> '+(st.mode==='draw'?'Tap to place route points':'Zoom and generate across the visible trails');
  });
  window.addEventListener('resize',()=>setTimeout(()=>map.invalidateSize(),100));
 }
@@ -319,7 +319,7 @@ function offset(p,bearing,meters){
 async function autoGenerate(){
  if(st.working||!st.map)return;
  setBusy(true,'Calculating route…');
- status(st.strictSoft?'Connecting only mapped or user-confirmed gravel/dirt trails; no road fallback.':
+ status(st.strictSoft?'Scanning ALL visible mapped gravel/dirt trails, then connecting compatible networks without paved roads.':
   'Connecting walking routes. Satellite surfaces are classified after the route is drawn.');
  try{
   const center=centerForAuto();
@@ -327,10 +327,24 @@ async function autoGenerate(){
   let route,strictNote='';
   if(st.strictSoft){
    if(!STRICT)throw Error('Strict surface router did not load. Refresh the Studio.');
+   const visible=st.zone?{
+    south:st.zone.sw.lat,west:st.zone.sw.lng,
+    north:st.zone.ne.lat,east:st.zone.ne.lng
+   }:{
+    south:st.map.getBounds().getSouth(),west:st.map.getBounds().getWest(),
+    north:st.map.getBounds().getNorth(),east:st.map.getBounds().getEast()
+   };
    const data=await STRICT.plan({
     lat:base.lat,lon:Number.isFinite(base.lon)?base.lon:base.lng,
-    miles:st.miles,shape:st.shape,material:st.softMaterial
-   },{reviews:VISION?.getReviews?.()||{},connectors:VISION?.getConnectors?.()||[]});
+    miles:st.miles,shape:st.shape,material:st.softMaterial,
+    bounds:visible,variant:st.reroll
+   },{
+    reviews:VISION?.getReviews?.()||{},
+    connectors:VISION?.getConnectors?.()||[],
+    onProgress:scan=>status('Searching visible trail networks: '+
+     scan.completed+'/'+scan.total+' map regions · '+scan.loaded+' loaded'+
+     (scan.failed?' · '+scan.failed+' unavailable':'')+'…')
+   });
    route=data.route;strictNote=data.note;route.strictNote=data.note;
   }else if(st.shape==='point-to-point'){
    const a={lat:base.lat,lon:base.lng},b=offset(base,(st.reroll*61+55)%360,st.miles*MI*.85);
@@ -347,7 +361,7 @@ async function autoGenerate(){
   status(route.strictSoft?strictNote:
     'Suggested '+route.distance_miles.toFixed(2)+'-mile route. Surface tags are loading separately.');
  }catch(err){status('Could not generate route: '+(err?.message||err));
-   message(st.strictSoft?'No connected gravel/dirt-only route here. Try labeling nearby paths or moving the map.':
+   message(st.strictSoft?'No qualifying connected gravel/dirt route was found in the visible search area. Zoom out, move the map, or review missing trail sections.':
     'Route unavailable. Try another area or draw waypoints.',7500);}
  finally{setBusy(false);}
 }
