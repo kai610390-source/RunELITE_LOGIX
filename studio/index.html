@@ -9,7 +9,7 @@
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<link rel="stylesheet" href="./styles.css?v=surface-lab-v4b-20261109">
+<link rel="stylesheet" href="./styles.css?v=multi-route-v13-20261110">
 </head>
 <body>
 <div class="shell">
@@ -209,7 +209,7 @@
   <h2>Build a route, not a subscription.</h2>
   <p><b>Generate:</b> Move the satellite map to an area, choose distance, and select Generate. You can regenerate alternatives.</p>
   <p><b>Draw:</b> Choose Draw waypoints and click the map. Drag markers to reshape, right-click to remove, or use Undo and Reverse. Routes snap to mapped walking paths; manual off-road mode is available.</p>
-  <p><b>Strict gravel/dirt:</b> Build from connected trail geometry carrying OSM gravel/dirt tags or individually confirmed surfaces. If a continuous full-length route cannot be assembled, the app shows a shortfall instead of inserting paved roads.</p>
+  <p><b>Soft-first route options:</b> Generate several gravel/dirt route candidates across the visible map, including short mapped walkable-road connectors when enabled. The route cards show soft-surface percentage, road distance, and alternative paths together on the map. Switch off road connectors for gravel/dirt-only routing. If a connection is not mapped or confirmed, it is not invented.</p>
   <p><b>Surface trainer:</b> Inspect high-resolution NAIP crops around trails and teach a browser-local color/texture classifier by labeling examples. Predictions remain estimates; manual review is required before strict routing uses a previously unknown segment. Google Maps imagery is not used for model training.</p>
   <p><b>Discover small trails:</b> Reveal even unnamed paths with missing surface tags (yellow dashed). Click a path and choose Add to route to keep its shape as a manually reviewed segment.</p>
   <p><b>Aerial Scout:</b> Search NAIP aerial photos for possible thin paths. This experimental feature can mistake roofs, drainage, and field lines for trails. Review imagery and access before using it.</p>
