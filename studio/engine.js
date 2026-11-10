@@ -105,7 +105,35 @@ async function snapRoute(points){
 }
 function directRoute(points){
  const coordinates=points.map(p=>[p.lat,p.lon]);
- return routeObject({coordinates,directions:[],provider:'Manual straight-line sketch'},'point-to-point','Manual route');
+ const route=routeObject({coordinates,directions:[],provider:'Manual straight-line sketch'},'point-to-point','Manual route');
+ route.manualSections=points.slice(1).map((p,i)=>({a:[points[i].lat,points[i].lon],b:[p.lat,p.lon]}));
+ return route;
+}
+async function hybridRoute(points){
+ if(points.length<2||points.length>16)throw Error('Use 2–16 route points.');
+ const coordinates=[],directions=[],manualSections=[];
+ for(let i=1;i<points.length;i++){
+  const a=points[i-1],b=points[i];
+  let part;
+  if(b.manualToHere){
+   part=[[a.lat,a.lon],[b.lat,b.lon]];
+   manualSections.push({a:part[0],b:part[1]});
+  }else{
+   const result=await snapRoute([a,b]);
+   part=result.coordinates;
+   directions.push(...(result.directions||[]));
+  }
+  if(coordinates.length&&part.length){
+   const last=coordinates.at(-1);
+   if(d(last,part[0])<1)part=part.slice(1);
+  }
+  coordinates.push(...part);
+  if(i%3===0&&i<points.length-1)await new Promise(r=>setTimeout(r,1100));
+ }
+ const route=routeObject({coordinates,directions,provider:'Walkable map network + reviewed trail sketch'},
+  'point-to-point','Connected small trails');
+ route.manualSections=manualSections;
+ return route;
 }
 function parseNative(text){
  let data;
@@ -129,7 +157,7 @@ function parseNative(text){
 async function nearbyGravel(c){
  const lon=Number.isFinite(c.lon)?c.lon:c.lng;
  if(!Number.isFinite(lon)||!Number.isFinite(c.lat))throw Error('Map location unavailable');
- const meters=470,dy=meters/111195,dx=meters/(111195*Math.max(.15,Math.cos(c.lat*RAD)));
+ const meters=650,dy=meters/111195,dx=meters/(111195*Math.max(.15,Math.cos(c.lat*RAD)));
  const box=[lon-dx,c.lat-dy,lon+dx,c.lat+dy].map(n=>n.toFixed(6)).join(',');
  if(overlayCache.has(box))return overlayCache.get(box);
  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),17000);
@@ -139,7 +167,8 @@ async function nearbyGravel(c){
   const text=await r.text();
   if(text.length>25000000)throw Error('Map extract is too large');
   const all=parseNative(text);
-  const out=all.filter(s=>['gravel','grass','dirt','track'].includes(s.surface));
+  // Include short untagged paths: surface unknown, but possibly dirt or trail.
+  const out=all.filter(s=>['gravel','grass','dirt','track'].includes(s.surface)||s.likelyTrail);
   overlayCache.set(box,out);if(overlayCache.size>12)overlayCache.delete(overlayCache.keys().next().value);
   return out;
  }finally{clearTimeout(timer);}
@@ -193,6 +222,6 @@ function gpx(route){
  return '<?xml version="1.0" encoding="UTF-8"?>\n<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="SurfaceStride Studio"><metadata><name>'+
   escaped(name)+'</name></metadata><trk><name>'+escaped(name)+'</name><trkseg>\n'+track+'\n</trkseg></trk></gpx>';
 }
-Object.assign(root,{snapRoute,directRoute,routeObject,nearbyGravel,elevation,weather,gpx,distance:d,
+Object.assign(root,{snapRoute,directRoute,hybridRoute,routeObject,nearbyGravel,elevation,weather,gpx,distance:d,
  _test:{parseOSRM,parseValhalla,parseNative,readPolyline6,sample}});
 })();
