@@ -77,10 +77,10 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 </style>
 </head>
 <body>
-<header><div class="logo">surface<span>stride.</span><small>GUESS & CORRECT TRAINER · V10</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
+<header><div class="logo">surface<span>stride.</span><small>TRAIL-FIRST TRAINER · V11</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
 <main class="container">
  <div class="topline">
-  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">The model guesses what is under the marker. Tell it if it is correct, or correct it—even if the image shows a tree or rooftop.</p></div>
+  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">Random images now center on mapped Austin footpaths when available. The target looks for the visible trail, not just the smoothest roof or a treetop. Confirm or correct every guess.</p></div>
   <div class="counter"><b id="totalCount">0</b><span>Labels collected</span></div>
  </div>
  <div class="layout">
@@ -104,7 +104,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    <div class="card-head"><strong>Check the prediction</strong><span class="chip">YOUR FEEDBACK TRAINS IT</span></div>
    <div class="panel-body">
     <h2 class="bigquestion">Is my guess right?</h2>
-    <p class="help">Look at the ground under the target on the aerial photo. Confirm my guess or change it. Another random image will appear automatically.</p>
+    <p class="help">Check the small marker directly on a trail. Confirm the guess or correct it. If the app cannot locate a visible trail, no marker appears until you click the correct place. The next image loads automatically.</p>
     <section id="guessPanel" class="guess-panel">
       <div class="guess-kicker">MY CURRENT GUESS</div>
       <div class="guess-label" id="guessLabel">Analyzing…</div>
@@ -150,11 +150,13 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    </div>
   </section>
  </div>
- <p class="footnote"><b>Predictions:</b> A small browser-trained nearest-neighbor model; the guesses are tentative and the vote-agreement number is not an accuracy score. Confirming or correcting a guess trains it, while trees and roofs are never valid running surfaces. <b>Image source:</b> public Texas, USDA and USGS NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
+ <p class="footnote"><b>Target selection:</b> Prefers mapped OpenStreetMap pedestrian paths and then checks the aerial image for a narrow visible line. Mapped trails and image lines can be inaccurate; a target is a suggestion, not evidence of surface or permission. If a trail cannot be located, click it yourself. <b>Predictions:</b> A small browser-trained nearest-neighbor model; the guesses are tentative and the vote-agreement number is not an accuracy score. Confirming or correcting a guess trains it, while trees and roofs are never valid running surfaces. <b>Image source:</b> public Texas, USDA and USGS NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
 </main>
-<script src="./ground-picker.js?v=imagery-fallback-v9"></script>
+<script src="./ground-picker.js?v=trail-first-v11"></script>
+<script src="./trail-focus.js?v=trail-first-v11"></script>
+<script src="./mapped-trail.js?v=trail-first-v11"></script>
 <script src="./imagery-providers.js?v=imagery-fallback-v9"></script>
-<script src="./surface-vision.js?v=guess-correct-v10"></script>
+<script src="./surface-vision.js?v=trail-first-v11"></script>
 <script>
 (function(){
 'use strict';
@@ -183,12 +185,19 @@ function message(value,kind=''){
  const s=$('status');s.textContent=value;s.className='notice '+kind;
 }
 function setLabelsDisabled(flag){
- for(const b of document.querySelectorAll('[data-label]'))b.disabled=flag;
- $('confirmGuess').disabled=flag||!state.sample||state.guess===null;
- $('showCorrections').disabled=flag||!state.sample;
+ const ready=!!state.sample?.vector;
+ for(const b of document.querySelectorAll('[data-label]'))b.disabled=flag||!ready;
+ $('confirmGuess').disabled=flag||!ready||state.guess===null;
+ $('showCorrections').disabled=flag||!ready;
 }
 function updateGuess(){
  const V=window.SurfaceStrideVision;
+ if(state.sample&&!state.sample.vector){
+  state.guess=null;
+  $('guessLabel').textContent='Click a visible trail first';
+  $('guessDetail').textContent='The aerial image is ready, but no trail was detected confidently. Click a trail or other surface, or skip. I will only classify your chosen spot.';
+  $('correctionPanel').hidden=true;setLabelsDisabled(true);return;
+ }
  if(!V||!state.sample){
   state.guess=null;$('guessLabel').textContent='Waiting for an image…';
   $('guessDetail').textContent='A guess will appear once an image has loaded.';
@@ -225,21 +234,21 @@ function randomLocation(){
  const zone=ZONES[index],angle=Math.random()*2*Math.PI,radius=zone.r*Math.sqrt(Math.random());
  const lat=zone.lat+Math.cos(angle)*radius/111195;
  const lon=zone.lon+Math.sin(angle)*radius/(111195*Math.max(.15,Math.cos(lat*Math.PI/180)));
- return {lat,lon,zone:zone.name};
+ return {lat,lon,zone:zone.name,zoneDef:zone};
 }
 function showLoading(){
- $('sampleTitle').textContent='Finding random Austin surface #'+(state.sampleNo+1)+'…';
+ $('sampleTitle').textContent='Finding mapped Austin trails for image #'+(state.sampleNo+1)+'…';
  $('placeholder').innerHTML='<span class="spinner"></span>Loading a zoomed-in aerial image from Austin…';
  $('imageFrame').classList.remove('has-image');
  state.guess=null;$('guessLabel').textContent='Analyzing…';
  $('guessDetail').textContent='Fetching and analyzing a random aerial image.';
  $('correctionPanel').hidden=true;
  $('retryButton').hidden=true;
- message('Loading an Austin-area surface. You can choose Gravel, Dirt, Grass, Paved or Not sure once it appears.','loading');
+ message('Checking nearby mapped footpaths, then looking for a visible trail in aerial imagery…','loading');
 }
 async function loadRandom(reuse=false){
  const V=window.SurfaceStrideVision;
- if(!V||!window.SurfaceStrideGroundPicker){
+ if(!V||!window.SurfaceStrideGroundPicker||!window.SurfaceStrideTrailFocus){
   message('Open-ground image scanner did not load. Refresh this page.','error');return;
  }
  if(state.busy)return;
@@ -252,10 +261,16 @@ async function loadRandom(reuse=false){
   let sample=null,position=null,noGround=0;
   for(let attempt=0;attempt<4;attempt++){
    position=(reuse&&attempt===0&&state.lastCoords)?state.lastCoords:randomLocation();
+   if(!(reuse&&attempt===0&&state.lastCoords)&&window.SurfaceStrideMappedTrail){
+    message('Looking for an actual mapped footpath near '+position.zone+'…','loading');
+    const mapped=await window.SurfaceStrideMappedTrail.randomInZone(position.zoneDef,{timeout:4500});
+    if(mapped)position={...mapped,zone:position.zone,zoneDef:position.zoneDef};
+   }
    try{
     sample=await V.capture(position.lat,position.lon,{
      spanMeters:state.span,px:640,timeout:13000,preferOpenGround:true,
-     onProgress:label=>message(label+' Looking for a clear ground surface…','loading')
+     trailFirst:true,trailHint:position,
+     onProgress:label=>message(label+' Identifying the visible trail…','loading')
     });
     break;
    }catch(err){
@@ -271,15 +286,22 @@ async function loadRandom(reuse=false){
   state.lastCoords=position;
   state.sample=sample;state.sampleNo++;
   $('sampleImage').src=sample.preview;
-  $('targetMarker').style.left=(sample.targetX*100).toFixed(1)+'%';
-  $('targetMarker').style.top=(sample.targetY*100).toFixed(1)+'%';
+  const marked=Number.isFinite(sample.targetX)&&Number.isFinite(sample.targetY);
+  $('targetMarker').style.display=marked?'block':'none';
+  if(marked){
+   $('targetMarker').style.left=(sample.targetX*100).toFixed(1)+'%';
+   $('targetMarker').style.top=(sample.targetY*100).toFixed(1)+'%';
+  }
   $('imageFrame').classList.add('has-image');
-  $('sampleTitle').textContent='Clear-ground candidate #'+state.sampleNo;
+  $('sampleTitle').textContent=marked?'Possible visible trail #'+state.sampleNo:
+    'Find the visible trail in photo #'+state.sampleNo;
   $('locationLabel').textContent=position.zone.toUpperCase();
   $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m · '+(sample.imagerySource||'public aerial imagery')+
-   ' · target avoids likely tree canopy';
+   (sample.mappedTrailName?' · near '+sample.mappedTrailName:'')+
+   (marked?' · tap to adjust marker':' · click the trail to place target');
   updateGuess();
-  message('Check the model’s guess, or choose the real category if it is wrong.','');
+  message(marked?'Trail target suggested from aerial geometry. Check it, then confirm or correct the surface.':
+   'I could not reliably detect a trail here. Click the real trail to place the marker, or skip.','');
  }catch(err){
   if(version!==state.version)return;
   $('sampleTitle').textContent='Could not find a clear aerial sample';
@@ -293,7 +315,7 @@ async function loadRandom(reuse=false){
 }
 function label(label){
  if(state.busy){message('The next image is loading. Please choose a label after it appears.','loading');return;}
- if(!state.sample){message('No image loaded yet. Try Skip / next image or upload a photo.','error');return;}
+ if(!state.sample?.vector){message('First click the actual trail or surface in the photo, or skip this image.','error');return;}
  const V=window.SurfaceStrideVision;
  try{
   const oldGuess=state.guess;
@@ -317,7 +339,7 @@ async function importPhoto(file){
   $('sampleTitle').textContent='Your uploaded image #'+state.sampleNo;
   $('locationLabel').textContent='USER IMAGE';
   $('sampleImage').src=sample.preview;
-  $('targetMarker').style.left='50%';$('targetMarker').style.top='50%';
+  $('targetMarker').style.left='50%';$('targetMarker').style.top='50%';$('targetMarker').style.display='block';
   $('imageFrame').classList.add('has-image');
   $('scaleNote').textContent='Your photo · crop centered';
   updateGuess();message('Your photo is ready. Confirm the guess or choose the actual category.','');
@@ -342,6 +364,7 @@ function wire(){
   try{
    const fx=(e.clientX-rect.left)/rect.width,fy=(e.clientY-rect.top)/rect.height;
    window.SurfaceStrideGroundPicker.place(state.sample,fx,fy);
+   $('targetMarker').style.display='block';
    $('targetMarker').style.left=(state.sample.targetX*100).toFixed(1)+'%';
    $('targetMarker').style.top=(state.sample.targetY*100).toFixed(1)+'%';
    updateGuess();message('Target moved. I updated my guess for the new spot.','');
