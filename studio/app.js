@@ -357,7 +357,7 @@ async function autoGenerate(){
    route=data.routes[0];route.title='Suggested '+(st.shape==='loop'?'loop':'out & back');
   }
   st.waypoints=[];st.markerLayer.clearLayers();
-  showRoute(route);
+  showRoute(route,{preserveView:!!route.strictSoft});
   status(route.strictSoft?strictNote:
     'Suggested '+route.distance_miles.toFixed(2)+'-mile route. Surface tags are loading separately.');
  }catch(err){status('Could not generate route: '+(err?.message||err));
@@ -969,7 +969,7 @@ function wires(){
  $('strictSoftToggle').addEventListener('change',e=>{
   st.strictSoft=e.target.checked;
   $('strictSoftNote').textContent=st.strictSoft?
-   'Strict routing uses only connected gravel/dirt OSM tags or your confirmed labels. Pavement is never inserted; distance can be shorter.':
+   'Search the visible map for multiple connected gravel/dirt trails. Zoom out for more networks (up to 7.5 km scanned). Pavement is never inserted.':
    'Standard walking routing can include paved roads. Surface percentages are estimated afterward.';
   if(st.route)status('Routing policy changed. Regenerate the route to apply it.');
  });
@@ -1009,6 +1009,11 @@ function wires(){
  $('clearBtn').addEventListener('click',()=>clearRoute());
  $('undoBtn').addEventListener('click',undo);
  $('reverseBtn').addEventListener('click',reverseRoute);
+ $('fitRouteBtn').addEventListener('click',()=>{
+  if(!st.route?.coordinates?.length){message('Generate a route first.');return;}
+  const bounds=L.latLngBounds(st.route.coordinates);
+  if(bounds.isValid())st.map.fitBounds(bounds.pad(.18),{animate:true,maxZoom:17});
+ });
  $('placeForm').addEventListener('submit',geocode);
  $('labelsBtn').addEventListener('click',()=>{
   st.labelsOn=!st.labelsOn;st.labels.forEach(l=>st.labelsOn?l.addTo(st.map):st.map.removeLayer(l));
