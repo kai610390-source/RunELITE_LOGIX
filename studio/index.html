@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
 <title>SurfaceStride Studio | Surface Lab V4</title>
-<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V4A -->
+<!-- SURFACESTRIDE_STUDIO_SURFACE_LAB_V4B -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<link rel="stylesheet" href="./styles.css?v=4">
+<link rel="stylesheet" href="./styles.css?v=surface-lab-v4b-20261109">
 </head>
 <body>
 <div class="shell">
@@ -112,9 +112,9 @@
           <button class="secondary-wide" id="clearAerialBtn">Hide aerial suggestions</button>
           <p class="hint">Inspect imagery, fences, access, and route continuity before adding a segment. Satellite imagery cannot establish whether land is public or a path is passable.</p>
           <div class="section-label"><span>◎</span> Train surface recognition</div>
-          <p class="hint">Zoom into a trail with public NAIP imagery, then label what you know: gravel, dirt, grass, paved road or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing.</p>
+          <p class="hint">Zoom into a trail with public NAIP imagery, then label what you know: gravel, dirt, grass, paved road or unknown. The simple color-and-texture model learns locally in your browser. It suggests labels; only your confirmed reviews unlock a trail for strict routing. Aim for dozens of correctly labeled Austin-area examples per class before relying on predictions.</p>
           <button class="secondary-wide" id="trainMapCenterBtn">Inspect surface at map center ↗</button>
-          <button class="secondary-wide" id="trainRandomBtn">Random Austin-area surface sample ↗</button>
+          <button class="secondary-wide" id="trainRandomBtn">Random aerial sample near map center ↗</button>
           <button class="secondary-wide" id="trainUploadBtn">Add my own licensed training image</button>
           <input id="trainFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
           <div class="trainer-box" id="trainerBox" hidden>
@@ -206,14 +206,14 @@
   <button id="closeHelp2" class="primary-cta">Start exploring ↗</button>
 </dialog>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="../surface-tags.js?build=studio4"></script>
+<script src="../surface-tags.js?build=surface-lab-v4b-20261109"></script>
 <script src="../foot-router.js?build=studio2"></script>
 <script src="../scout.js?build=studio3"></script>
 <script src="./aerial.js?build=studio3"></script>
 <script src="../share-route.js?build=studio1"></script>
-<script src="./engine.js?build=studio4"></script>
-<script src="./strict-soft.js?build=studio4"></script>
-<script src="./surface-vision.js?build=studio4"></script>
-<script src="./app.js?build=studio4"></script>
+<script src="./engine.js?build=surface-lab-v4b-20261109"></script>
+<script src="./strict-soft.js?build=surface-lab-v4b-20261109"></script>
+<script src="./surface-vision.js?build=surface-lab-v4b-20261109"></script>
+<script src="./app.js?build=surface-lab-v4b-20261109"></script>
 </body>
 </html>
