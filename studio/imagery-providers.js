@@ -74,22 +74,29 @@ async function cachedTileMosaic(bounds,size,{perTileMs=4800}={}){
 }
 async function capture(bounds,size,{timeoutPerSource=6500,onProgress}={}){
  const failures=[];
- for(const entry of PROVIDERS){
-  if(typeof onProgress==='function')onProgress('Trying '+entry.name+' imagery…');
-  try{
-   const url=entry.url+'?'+bboxQuery(bounds,size);
-   const img=await getImage(url,timeoutPerSource);
-   const loaded=canvasPixels(img,size,size);
-   return {...loaded,source:entry.name,cached:false};
-  }catch(err){
-   failures.push(entry.name+': '+(err?.message||err));
-  }
+ const batches=[PROVIDERS.slice(0,2),PROVIDERS.slice(2,4)];
+ for(const group of batches){
+  if(typeof onProgress==='function')
+   onProgress('Checking '+group.map(x=>x.name).join(' and ')+'…');
+  const calls=group.map(async entry=>{
+   try{
+    const url=entry.url+'?'+bboxQuery(bounds,size);
+    const img=await getImage(url,timeoutPerSource);
+    const loaded=canvasPixels(img,size,size);
+    return {...loaded,source:entry.name,cached:false};
+   }catch(err){
+    failures.push(entry.name+': '+(err?.message||err));
+    throw err;
+   }
+  });
+  try{return await Promise.any(calls);}
+  catch(err){/* All providers in this batch failed. */}
  }
- if(typeof onProgress==='function')onProgress('Trying a cached USGS aerial map…');
- try{return await cachedTileMosaic(bounds,size)}
+ if(typeof onProgress==='function')onProgress('Trying cached USGS aerial tiles…');
+ try{return await cachedTileMosaic(bounds,size,{perTileMs:5500});}
  catch(err){failures.push('USGS cached map: '+(err?.message||err));}
- throw Error('Aerial imagery unavailable. '+failures.join(' · ')+
-  '. Your network may be blocking external imagery; use an image you own.');
+ throw Error('Public aerial services unavailable. '+failures.join(' · ')+
+  '. The school/network may block aerial data. You can still use an image you own.');
 }
 window.SurfaceStrideImagery={capture,_test:{bboxQuery,cachedTileMosaic,providers:PROVIDERS.map(p=>p.name)}};
 })();
