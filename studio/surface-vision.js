@@ -67,6 +67,12 @@ function features(imageData){
  region(Math.max(15,Math.floor(r*.13)),1);
  return sums.map(x=>Number(x.toFixed(5)));
 }
+function removeLastExample(){
+ if(!examples.length)return false;
+ const next=examples.slice(0,-1);
+ if(!store(TRAIN,next))throw Error('Browser storage unavailable.');
+ examples=next;return true;
+}
 function count(){
  const counts=Object.fromEntries(LABELS.map(l=>[l,0]));
  for(const x of examples)counts[x.label]++;
@@ -205,7 +211,7 @@ function importTraining(payload){
  if(!store(TRAIN,next))throw Error('Browser storage unavailable.');
  examples=next;return count();
 }
-window.SurfaceStrideVision={capture,fromFile,features,predict,count,addExample,review,getReviews,
+window.SurfaceStrideVision={capture,fromFile,features,predict,count,addExample,removeLastExample,review,getReviews,
  reviewedCount,removeReview,surfaceKey,getConnectors,saveConnector,exportTraining,importTraining,
  _test:{merc,materialLabels:LABELS.slice(),clearMemory(){examples=[];reviews={};}}};
 })();
