@@ -261,44 +261,75 @@ function pathTo(parent,start,target){
  list.reverse();edges.reverse();return {ids:list,edges};
 }
 function routeFromWalk(graph,walk,title,shape,targetMeters,stemLength=0){
- const coordinates=[],distances=[],spans=[];
- let total=0,used=0,reviewed=0;const byMaterial={gravel:0,dirt:0};
- for(let i=0;i<walk.ids.length;i++){
-  const p=graph.nodes.get(walk.ids[i]);if(!p)throw Error('Broken route geometry');
-  coordinates.push([p.lat,p.lon]);
-  if(i===0)continue;
-  const e=walk.edges[i-1];if(!e)throw Error('Route edge missing');
-  total+=e.length;byMaterial[e.material]+=e.length;
-  if(e.evidence==='osm')used+=e.length;else reviewed+=e.length;
-  const last=spans[spans.length-1];
-  if(last&&last.surface===e.material&&last.evidence===e.evidence)last.points.push([p.lat,p.lon]);
-  else spans.push({surface:e.material,evidence:e.evidence==='osm'?'tagged':'reviewed',
-    points:[coordinates[i-1],[p.lat,p.lon]]});
+ if(!walk.ids?.length||!walk.edges?.length)throw Error('No route geometry');
+ const start=graph.nodes.get(walk.ids[0]);
+ if(!start)throw Error('Missing starting node');
+ const coordinates=[[start.lat,start.lon]],spans=[],lengths=[0],edgeAt=[];
+ const byMaterial={gravel:0,dirt:0,paved:0,unknown:0};
+ let total=0,used=0,reviewed=0,road=0,roadSections=0;
+ let roadRun=0,maxRoadRun=0;
+ const roadNames=new Set(),softWays=new Set();
+ for(let i=0;i<walk.edges.length;i++){
+  const e=walk.edges[i],from=walk.ids[i],to=walk.ids[i+1];
+  if(!e||!graph.nodes.has(to))throw Error('Broken route edge');
+  const backward=e.a===to&&e.b===from;
+  const path=e.coords?.length?(backward?e.coords.slice().reverse():e.coords):
+   [[graph.nodes.get(from).lat,graph.nodes.get(from).lon],
+    [graph.nodes.get(to).lat,graph.nodes.get(to).lon]];
+  const surface=e.material==='gravel'?'gravel':e.material==='dirt'?'dirt':
+   e.material==='paved'?'paved':'unknown';
+  byMaterial[surface]+=e.length;total+=e.length;
+  if(e.evidence==='osm'){used+=e.length;softWays.add(String(e.wayId));}
+  else if(e.evidence==='reviewed'){reviewed+=e.length;softWays.add(String(e.wayId));}
+  else if(e.evidence==='road'){
+   road+=e.length;roadNames.add(e.roadNames?.join(' / ')||e.name);
+   if(roadRun===0)roadSections++;roadRun+=e.length;maxRoadRun=Math.max(maxRoadRun,roadRun);
+  }
+  if(e.evidence!=='road')roadRun=0;
+  const evidence=e.evidence==='osm'?'tagged':e.evidence==='road'?'road':'reviewed';
+  let last=spans[spans.length-1];
+  if(!last||last.surface!==surface||last.evidence!==evidence){
+   last={surface,evidence,points:[coordinates[coordinates.length-1]]};
+   spans.push(last);
+  }
+  for(let j=1;j<path.length;j++){
+   const previous=coordinates[coordinates.length-1],point=path[j];
+   const segLength=meters({lat:previous[0],lon:previous[1]},{lat:point[0],lon:point[1]});
+   if(segLength<.03)continue;
+   coordinates.push([point[0],point[1]]);
+   lengths.push(lengths[lengths.length-1]+segLength);
+   edgeAt.push(e);
+   last.points.push([point[0],point[1]]);
+  }
  }
- if(total<25)throw Error('Not enough connected gravel/dirt path');
- let rawTotal=0;const lengths=[0];
- for(let i=1;i<coordinates.length;i++){
-  rawTotal+=meters({lat:coordinates[i-1][0],lon:coordinates[i-1][1]},
-    {lat:coordinates[i][0],lon:coordinates[i][1]});
-  lengths.push(rawTotal);
- }
+ if(total<25||coordinates.length<2)throw Error('Not enough connected gravel/dirt path');
+ const pct=type=>Number((byMaterial[type]/total*100).toFixed(1));
  const check=[.16,.34,.52,.70,.87].map(f=>{
-  let i=1;while(i<lengths.length-1&&lengths[i]<rawTotal*f)i++;
-  const e=walk.edges[Math.min(i-1,walk.edges.length-1)];
+  let i=1;while(i<lengths.length-1&&lengths[i]<lengths[lengths.length-1]*f)i++;
+  const e=edgeAt[Math.max(0,i-1)];
   return {lat:coordinates[i][0],lon:coordinates[i][1],
    name:e?.name||'Small trail',surface:e?.material||'unknown',
-   evidence:e?.evidence==='osm'?'tagged':'reviewed',
-   at_mile:Number((rawTotal*f/MI).toFixed(2))};
+   evidence:e?.evidence==='osm'?'tagged':e?.evidence==='road'?'road':'reviewed',
+   at_mile:Number((lengths[i]/MI).toFixed(2))};
  });
- const totalMiles=Number((total/MI).toFixed(2)),pct=label=>Number((byMaterial[label]/total*100).toFixed(1));
+ const totalMiles=Number((total/MI).toFixed(2));
  return {id:1,title,mode:shape,distance_m:Math.round(total),
   distance_miles:totalMiles,coordinates,spans,checkpoints:check,
   road_names:[...new Set(walk.edges.map(e=>e.name).filter(e=>e!=='Unnamed trail'))].slice(0,25),
-  directions:[],surface_percent:{grass:0,dirt:pct('dirt'),gravel:pct('gravel'),paved:0,track:0,unknown:0},
+  directions:[],
+  surface_percent:{grass:0,dirt:pct('dirt'),gravel:pct('gravel'),
+   paved:pct('paved'),track:0,unknown:pct('unknown')},
+  soft_percent:Number(((byMaterial.dirt+byMaterial.gravel)/total*100).toFixed(1)),
   tagged_percent:Math.round(used/total*100),reviewed_percent:Math.round(reviewed/total*100),
-  inferred_percent:0,unknown_percent:0,match_percent:100,
-  strictSoft:true,source:'OSM path tags and locally confirmed segments',
-  surface_data_status:'scanned',elevation_status:'unavailable',stem_miles:Number((stemLength/MI).toFixed(2)),
+  inferred_percent:0,unknown_percent:pct('unknown'),match_percent:pct('dirt')+pct('gravel'),
+  strictSoft:true,allowRoadLinks:road>0,road_meters:Math.round(road),
+  road_miles:Number((road/MI).toFixed(2)),road_percent:Number((road/total*100).toFixed(1)),
+  road_sections:roadSections,max_road_link_m:Math.round(maxRoadRun),
+  trail_ways_count:softWays.size,
+  source:road?'OSM soft paths, user reviews, and short mapped pedestrian road links':
+   'OSM soft paths and locally confirmed segments',
+  surface_data_status:'scanned',elevation_status:'unavailable',
+  stem_miles:Number((stemLength/MI).toFixed(2)),
   target_miles:Number((targetMeters/MI).toFixed(2))};
 }
 function reverseWalk(walk){
