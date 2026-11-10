@@ -53,7 +53,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 .swatch{height:18px;width:18px;border-radius:6px;display:inline-block;flex:none}
 .progress{padding:14px;margin-top:20px;background:#f4f9f3;border:1px solid #e5eee2;border-radius:11px}
 .progress-title{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#60836a;font-weight:750;margin-bottom:10px}
-.count-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.count-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .count-box{text-align:center;border-radius:8px;background:#fff;border:1px solid #e0e9df;padding:9px 1px}
 .count-box b{display:block;color:#356d4c;font-size:18px}.count-box span{display:block;font-size:9px;color:#9cafa0;margin-top:4px}
 .notice{padding:11px 13px;border:1px solid #d3e5d5;border-radius:9px;background:#ecf6eb;color:#38714d;font-size:11px;line-height:1.6;margin:13px 0}
@@ -63,13 +63,24 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 .upload{font-size:11px;color:#507f60}.footnote{margin:18px 2px 32px;color:#869a87;font-size:11px;line-height:1.7}.footnote b{color:#568068}
 @media(max-width:850px){.layout{grid-template-columns:1fr}.container{max-width:710px}.topline{align-items:start}h1{font-size:30px}}
 @media(max-width:460px){header{height:69px;padding:0 15px}.logo{font-size:18px}.container{padding:0 10px;margin:20px auto}.counter{padding:10px}.counter b{font-size:20px}.topline{padding:0 4px}.image-frame{aspect-ratio:1/1}.card-head{padding:12px 14px}.toolbar{padding:10px}.panel-body{padding:16px}.label-buttons button{font-size:12px;min-height:60px;padding:9px}.bigquestion{font-size:25px}}
+
+.guess-panel{background:#edf6ed;border:1px solid #d6e8d6;border-radius:13px;padding:16px;margin:0 0 14px}
+.guess-kicker{color:#56896a;font-size:10px;letter-spacing:1.5px;font-weight:870}
+.guess-label{font-family:Georgia,serif;color:#194c32;font-size:31px;font-weight:600;margin:10px 0}
+.guess-detail{font-size:11px;color:#668775;line-height:1.65;margin:6px 0;min-height:30px}
+.guess-actions{display:flex;gap:9px;margin-top:13px}
+.guess-actions .btn{flex:1;min-height:45px;font-size:12px}
+.correction-panel{background:#fafcf9;border:1px solid #dce9dd;border-radius:12px;padding:13px;margin-bottom:16px}
+.correction-heading{font-size:12px;font-weight:840;margin:1px 0 12px;color:#2b6846}
+.count-grid .count-box span{font-size:8px}
+@media(max-width:460px){.guess-actions{flex-direction:column}.count-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.guess-label{font-size:27px}}
 </style>
 </head>
 <body>
-<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V9</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
+<header><div class="logo">surface<span>stride.</span><small>GUESS & CORRECT TRAINER · V10</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
 <main class="container">
  <div class="topline">
-  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">The trainer searches random Austin aerial images for clear ground and puts the target there, rather than on trees. Label the surface beneath the target.</p></div>
+  <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">The model guesses what is under the marker. Tell it if it is correct, or correct it—even if the image shows a tree or rooftop.</p></div>
   <div class="counter"><b id="totalCount">0</b><span>Labels collected</span></div>
  </div>
  <div class="layout">
@@ -90,17 +101,31 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    </div>
   </section>
   <section class="card">
-   <div class="card-head"><strong>Classify the image</strong><span class="chip">YOUR ANSWER TRAINS IT</span></div>
+   <div class="card-head"><strong>Check the prediction</strong><span class="chip">YOUR FEEDBACK TRAINS IT</span></div>
    <div class="panel-body">
-    <h2 class="bigquestion">What's the surface?</h2>
-    <p class="help">Label the ground underneath the target, not the whole image. If the target misses clear ground, click the correct spot in the image or skip it. The next random image loads automatically.</p>
-    <div class="label-buttons">
-     <button type="button" data-label="gravel"><span class="swatch" style="background:#d9b480"></span>Gravel</button>
-     <button type="button" data-label="dirt"><span class="swatch" style="background:#b38460"></span>Dirt</button>
-     <button type="button" data-label="grass"><span class="swatch" style="background:#65bd75"></span>Grass</button>
-     <button type="button" data-label="paved"><span class="swatch" style="background:#a5b4b6"></span>Paved road</button>
-     <button type="button" data-label="unknown"><span class="swatch" style="background:#c7d2c7"></span>Not sure / other</button>
-    </div>
+    <h2 class="bigquestion">Is my guess right?</h2>
+    <p class="help">Look at the ground under the target on the aerial photo. Confirm my guess or change it. Another random image will appear automatically.</p>
+    <section id="guessPanel" class="guess-panel">
+      <div class="guess-kicker">MY CURRENT GUESS</div>
+      <div class="guess-label" id="guessLabel">Analyzing…</div>
+      <p class="guess-detail" id="guessDetail">Comparing the image with saved examples.</p>
+      <div class="guess-actions">
+        <button type="button" id="confirmGuess" class="btn primary" disabled>✓ Correct</button>
+        <button type="button" id="showCorrections" class="btn secondary">✎ Wrong — change it</button>
+      </div>
+    </section>
+    <section id="correctionPanel" class="correction-panel" hidden>
+      <div class="correction-heading">What is it actually?</div>
+      <div class="label-buttons">
+        <button type="button" data-label="gravel"><span class="swatch" style="background:#d9b480"></span>Gravel</button>
+        <button type="button" data-label="dirt"><span class="swatch" style="background:#b38460"></span>Dirt</button>
+        <button type="button" data-label="grass"><span class="swatch" style="background:#65bd75"></span>Grass</button>
+        <button type="button" data-label="paved"><span class="swatch" style="background:#a5b4b6"></span>Paved road</button>
+        <button type="button" data-label="tree"><span class="swatch" style="background:#28623c"></span>Tree canopy</button>
+        <button type="button" data-label="building"><span class="swatch" style="background:#c0a6b2"></span>Building roof</button>
+        <button type="button" data-label="unknown"><span class="swatch" style="background:#c7d2c7"></span>Not sure / other</button>
+      </div>
+    </section>
     <div id="status" class="notice loading" role="status" aria-live="polite">Loading your first random surface…</div>
     <div class="progress">
      <div class="progress-title"><span>Your training examples</span><span id="reviewCount">Saved locally</span></div>
@@ -109,6 +134,8 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
       <div class="count-box"><b id="countDirt">0</b><span>Dirt</span></div>
       <div class="count-box"><b id="countGrass">0</b><span>Grass</span></div>
       <div class="count-box"><b id="countPaved">0</b><span>Paved</span></div>
+      <div class="count-box"><b id="countTree">0</b><span>Trees</span></div>
+      <div class="count-box"><b id="countBuilding">0</b><span>Roofs</span></div>
       <div class="count-box"><b id="countUnknown">0</b><span>Other</span></div>
      </div>
     </div>
@@ -123,16 +150,17 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    </div>
   </section>
  </div>
- <p class="footnote"><b>Image source:</b> public Texas, USDA and USGS NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
+ <p class="footnote"><b>Predictions:</b> A small browser-trained nearest-neighbor model; the guesses are tentative and the vote-agreement number is not an accuracy score. Confirming or correcting a guess trains it, while trees and roofs are never valid running surfaces. <b>Image source:</b> public Texas, USDA and USGS NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
 </main>
 <script src="./ground-picker.js?v=imagery-fallback-v9"></script>
 <script src="./imagery-providers.js?v=imagery-fallback-v9"></script>
-<script src="./surface-vision.js?v=imagery-fallback-v9"></script>
+<script src="./surface-vision.js?v=guess-correct-v10"></script>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const CATEGORIES=['gravel','dirt','grass','paved','unknown'];
+const CATEGORIES=['gravel','dirt','grass','paved','tree','building','unknown'];
+const NAMES={gravel:'Gravel',dirt:'Dirt',grass:'Grass',paved:'Paved road',tree:'Tree canopy',building:'Building roof',unknown:'Not sure / other'};
 const ZONES=[
  {name:'Zilker and Barton Creek',lat:30.2675,lon:-97.7756,r:480},
  {name:'Lady Bird Lake',lat:30.2605,lon:-97.7560,r:550},
@@ -149,13 +177,38 @@ const ZONES=[
  {name:'Northeast Austin',lat:30.3275,lon:-97.6738,r:700},
  {name:'Southwest Austin',lat:30.2292,lon:-97.8024,r:820}
 ];
-const state={busy:false,sample:null,span:220,sampleNo:0,pendingNext:null,version:0,zoneIndex:-1,lastCoords:null};
+const state={busy:false,sample:null,guess:null,span:220,sampleNo:0,pendingNext:null,version:0,zoneIndex:-1,lastCoords:null};
 let sleepTimer=null;
 function message(value,kind=''){
  const s=$('status');s.textContent=value;s.className='notice '+kind;
 }
 function setLabelsDisabled(flag){
- for(const button of document.querySelectorAll('[data-label]'))button.disabled=flag;
+ for(const b of document.querySelectorAll('[data-label]'))b.disabled=flag;
+ $('confirmGuess').disabled=flag||!state.sample||state.guess===null;
+ $('showCorrections').disabled=flag||!state.sample;
+}
+function updateGuess(){
+ const V=window.SurfaceStrideVision;
+ if(!V||!state.sample){
+  state.guess=null;$('guessLabel').textContent='Waiting for an image…';
+  $('guessDetail').textContent='A guess will appear once an image has loaded.';
+  $('correctionPanel').hidden=true;setLabelsDisabled(true);return;
+ }
+ try{
+  const p=V.predict(state.sample.vector);
+  state.guess=p.hasGuess?p.label:null;
+  $('guessLabel').textContent=state.guess===null?'No guess yet':NAMES[state.guess]||state.guess;
+  $('guessDetail').textContent=state.guess===null?
+   'Choose a category below to teach the model its first example.':
+   (p.trained?'Tentative guess. ':'Very early guess. ')+
+   Math.round(p.confidence*100)+'% nearest-example vote agreement (NOT accuracy). '+p.reason;
+  $('correctionPanel').hidden=state.guess!==null;
+  setLabelsDisabled(state.busy);
+ }catch(err){
+  state.guess=null;$('guessLabel').textContent='Prediction unavailable';
+  $('guessDetail').textContent=err?.message||String(err);
+  $('correctionPanel').hidden=false;setLabelsDisabled(state.busy);
+ }
 }
 function updateCounts(){
  const V=window.SurfaceStrideVision;if(!V){message('Surface model unavailable. Refresh the page.','error');return;}
@@ -178,6 +231,9 @@ function showLoading(){
  $('sampleTitle').textContent='Finding random Austin surface #'+(state.sampleNo+1)+'…';
  $('placeholder').innerHTML='<span class="spinner"></span>Loading a zoomed-in aerial image from Austin…';
  $('imageFrame').classList.remove('has-image');
+ state.guess=null;$('guessLabel').textContent='Analyzing…';
+ $('guessDetail').textContent='Fetching and analyzing a random aerial image.';
+ $('correctionPanel').hidden=true;
  $('retryButton').hidden=true;
  message('Loading an Austin-area surface. You can choose Gravel, Dirt, Grass, Paved or Not sure once it appears.','loading');
 }
@@ -222,7 +278,8 @@ async function loadRandom(reuse=false){
   $('locationLabel').textContent=position.zone.toUpperCase();
   $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m · '+(sample.imagerySource||'public aerial imagery')+
    ' · target avoids likely tree canopy';
-  message('Open-ground spot suggested. Check the target and label it, click to move it, or skip if unclear.','');
+  updateGuess();
+  message('Check the model’s guess, or choose the real category if it is wrong.','');
  }catch(err){
   if(version!==state.version)return;
   $('sampleTitle').textContent='Could not find a clear aerial sample';
@@ -231,7 +288,7 @@ async function loadRandom(reuse=false){
   $('retryButton').hidden=false;
   message('Open-ground sample unavailable: '+(err?.message||err),'error');
  }finally{
-  if(version===state.version){state.busy=false;$('skipButton').disabled=false;setLabelsDisabled(false);}
+  if(version===state.version){state.busy=false;$('skipButton').disabled=false;updateGuess();}
  }
 }
 function label(label){
@@ -239,11 +296,13 @@ function label(label){
  if(!state.sample){message('No image loaded yet. Try Skip / next image or upload a photo.','error');return;}
  const V=window.SurfaceStrideVision;
  try{
+  const oldGuess=state.guess;
   V.addExample(state.sample.vector,label,{source:state.sample.source,lat:state.sample.lat,lon:state.sample.lon});
   updateCounts();
-  state.sample=null;
+  state.sample=null;state.guess=null;
   setLabelsDisabled(true);
-  message('Saved: '+(label==='unknown'?'Not sure / other':label)+'. Loading another random Austin surface…','ok');
+  message((oldGuess===null?'Saved initial label: ':oldGuess===label?'✓ Guess confirmed: ':'✓ Model corrected: ')+
+    NAMES[label]+'. Loading the next random image…','ok');
   clearTimeout(sleepTimer);
   sleepTimer=setTimeout(()=>loadRandom(false),450);
  }catch(err){message('Could not save label: '+(err?.message||err),'error');}
@@ -261,9 +320,9 @@ async function importPhoto(file){
   $('targetMarker').style.left='50%';$('targetMarker').style.top='50%';
   $('imageFrame').classList.add('has-image');
   $('scaleNote').textContent='Your photo · crop centered';
-  message('Photo ready. Choose its surface type. After labeling, a random Austin image loads.','');
+  updateGuess();message('Your photo is ready. Confirm the guess or choose the actual category.','');
  }catch(err){message('Unable to open your photo: '+(err?.message||err),'error');}
- finally{state.busy=false;setLabelsDisabled(false);$('uploadFile').value='';}
+ finally{state.busy=false;updateGuess();$('uploadFile').value='';}
 }
 function exportFile(data,name){
  const blob=new Blob([data],{type:'application/json'});
@@ -285,15 +344,21 @@ function wire(){
    window.SurfaceStrideGroundPicker.place(state.sample,fx,fy);
    $('targetMarker').style.left=(state.sample.targetX*100).toFixed(1)+'%';
    $('targetMarker').style.top=(state.sample.targetY*100).toFixed(1)+'%';
-   message('Target moved. Label only the surface underneath the updated marker.','');
+   updateGuess();message('Target moved. I updated my guess for the new spot.','');
   }catch(err){message('Could not move target: '+(err?.message||err),'error');}
+ });
+ $('confirmGuess').addEventListener('click',()=>{if(state.guess!==null)label(state.guess);});
+ $('showCorrections').addEventListener('click',()=>{
+  if(!state.sample)return;
+  $('correctionPanel').hidden=false;
+  $('correctionPanel').scrollIntoView?.({behavior:'smooth',block:'nearest'});
  });
  document.querySelectorAll('[data-label]').forEach(b=>b.addEventListener('click',()=>label(b.dataset.label)));
  $('uploadButton').addEventListener('click',()=>$('uploadFile').click());
  $('uploadFile').addEventListener('change',e=>importPhoto(e.target.files?.[0]));
  $('undoButton').addEventListener('click',()=>{
   try{const did=window.SurfaceStrideVision.removeLastExample();
-   updateCounts();message(did?'Last label undone.':'No saved labels to undo.',did?'ok':'');
+   updateCounts();updateGuess();message(did?'Last label undone.':'No saved labels to undo.',did?'ok':'');
   }catch(err){message('Could not undo label: '+(err?.message||err),'error');}
  });
  $('exportButton').addEventListener('click',()=>{
@@ -306,7 +371,7 @@ function wire(){
   const file=e.target.files?.[0];if(!file)return;
   try{if(file.size>3000000)throw Error('File exceeds 3 MB');
    window.SurfaceStrideVision.importTraining(JSON.parse(await file.text()));
-   updateCounts();message('Training data imported successfully.','ok');
+   updateCounts();updateGuess();message('Training data imported successfully.','ok');
   }catch(err){message('Import failed: '+(err?.message||err),'error');}
   finally{$('importFile').value='';}
  });
