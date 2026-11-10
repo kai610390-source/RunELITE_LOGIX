@@ -431,7 +431,7 @@ function branchExplore(graph,base,target,{maxDetours=4}={}){
     anchors.push({node,index:i});
   }
   // Bound CPU work for dense urban OSM networks.
-  const stride=Math.max(1,Math.ceil(anchors.length/26));
+  const stride=Math.max(1,Math.ceil(anchors.length/15));
   let best=null;
   const onRoute=new Set(walk.ids);
   for(let k=0;k<anchors.length;k+=stride){
@@ -643,7 +643,7 @@ async function loadVisible(center,miles,{bounds=null,fetcher=fetch,timeout=14500
  if(elements.length<4)throw Error('No usable mapped path data in the visible area.');
  return {elements,region,loaded:success.length,missing:failed.length,total};
 }
-function networkWalks(graph,networks,center,target,shape){
+function networkWalks(graph,networks,center,target,shape,{allowBranchRetracing=true}={}){
  const candidates=[];
  for(const comp of networks){
   if(comp.totalLength<25)continue;
@@ -684,14 +684,15 @@ function networkWalks(graph,networks,center,target,shape){
   shortlist.push(entry);fromComponent.set(group,used+1);
  }
  const alternatives=[];
- for(const entry of shortlist){
+ for(const [entryIndex,entry] of shortlist.entries()){
   try{
    if(shape==='loop'){
     const loop=findLoop(graph,entry.start,target);
     if(loop){
      alternatives.push({...loop,shape:'loop',start:entry.start,
       component:entry.component,offset:entry.distance});
-     const explored=branchExplore(graph,loop.walk,target,{maxDetours:4});
+     const explored=allowBranchRetracing&&entryIndex<12?
+      branchExplore(graph,loop.walk,target,{maxDetours:4}):null;
      if(explored?.detours)alternatives.push({...loop,walk:explored.walk,
       detours:explored.detours,shape:'loop',start:entry.start,
       component:entry.component,offset:entry.distance});
@@ -702,7 +703,7 @@ function networkWalks(graph,networks,center,target,shape){
     start:entry.start,component:entry.component,offset:entry.distance});
    // Starting with a shorter stem reserves distance for other small trails
    // branching from the route. This allows multi-spur runs without roads.
-   if(shape!=='point-to-point'){
+   if(allowBranchRetracing&&shape!=='point-to-point'&&entryIndex<12){
     const partial=outBack(graph,entry.start,target*.62,'out-and-back');
     const explored=branchExplore(graph,partial.walk,target,{maxDetours:4});
     if(explored?.detours)alternatives.push({...partial,
@@ -765,12 +766,13 @@ function buildFromData(elements,options,reviews={},connectors=[]){
 }
 function buildOptionsFromData(elements,options,reviews={},connectors=[]){
  const {center,material:preferred='both',miles=5,shape='loop',
-  allowRoadLinks=true,includeLikely=true,maxRoadMeters=240,maxOptions=4,scanMeta=null}=options;
+  allowRoadLinks=true,includeLikely=true,allowBranchRetracing=true,
+  maxRoadMeters=240,maxOptions=4,scanMeta=null}=options;
  const graph=graphFromElements(elements,reviews,preferred,connectors,{includeLikely});
  const originalNetworks=components(graph).filter(c=>c.totalLength>=25).length;
  if(allowRoadLinks)bridgeNetworks(graph,elements,{maxRoadMeters});
  const networks=components(graph);
- const alternatives=networkWalks(graph,networks,center,MI*miles,shape);
+ const alternatives=networkWalks(graph,networks,center,MI*miles,shape,{allowBranchRetracing});
  const routes=[];
  for(const choice of alternatives){
   if(routes.length>=Math.min(5,Math.max(1,maxOptions)))break;
@@ -799,6 +801,7 @@ function buildOptionsFromData(elements,options,reviews={},connectors=[]){
   if(route.max_road_link_m>maxRoadMeters||route.road_sections>4)continue;
   const score=deviation*1.6+roadPct*2.1+
    (route.inferred_percent||0)/100*.32+
+   (route.retrace_percent||0)/100*.10+
    (route.surface_percent.unknown||0)/100*.55+
    shapePenalty+choice.offset/45000;
   route.trail_ways_count=route.trail_ways_count||0;
@@ -893,6 +896,7 @@ async function planOptions(options,{fetcher=fetch,reviews={},connectors=[],onPro
   center:{lat,lon},miles,material:preferred,shape:options.shape,
   allowRoadLinks:options.allowRoadLinks!==false,
   includeLikely:options.includeLikely!==false,
+  allowBranchRetracing:options.allowBranchRetracing!==false,
   maxRoadMeters:options.maxRoadMeters||240,
   maxOptions:options.maxOptions||4,scanMeta:scan
  },reviews,connectors);
