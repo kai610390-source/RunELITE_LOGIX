@@ -927,7 +927,16 @@ function wires(){
  document.querySelectorAll('[data-preference]').forEach(b=>b.addEventListener('click',()=>{
   st.preference=b.dataset.preference;
   document.querySelectorAll('[data-preference]').forEach(x=>x.classList.toggle('active',x===b));
-  if(st.route){status('Surface preference updated. Regenerate to explore another route; tag percentages describe the current route.');}
+  if(st.preference==='gravel')st.softMaterial='gravel';
+  else if(st.preference==='soft'||st.preference==='mixed')st.softMaterial='both';
+  else if(st.preference==='paved'&&st.strictSoft){
+   st.strictSoft=false;$('strictSoftToggle').checked=false;
+   $('strictSoftNote').textContent='Strict gravel/dirt routing was disabled because you selected pavement.';
+   message('Pavement selected: strict gravel/dirt-only restriction turned off.',5600);
+  }
+  document.querySelectorAll('[data-soft-material]').forEach(x=>
+   x.classList.toggle('active',x.dataset.softMaterial===st.softMaterial));
+  if(st.route)status('Surface preference updated. Generate again to use the new preference.');
  }));
  document.querySelectorAll('[data-terrain]').forEach(b=>b.addEventListener('click',()=>{
   st.terrain=b.dataset.terrain;document.querySelectorAll('[data-terrain]').forEach(x=>x.classList.toggle('active',x===b));
