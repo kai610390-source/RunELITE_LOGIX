@@ -150,41 +150,19 @@ function removeReview(segment){
 function merc(lon,lat){
  return {x:R*lon*Math.PI/180,y:R*Math.log(Math.tan(Math.PI/4+Math.max(-85,Math.min(85,lat))*Math.PI/360))};
 }
-async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGround=false}={}){
+async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGround=false,onProgress=null}={}){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>85||Math.abs(lon)>180)
   throw Error('Invalid patch center');
  if(lat<24||lat>50||lon< -125||lon> -66)throw Error('NAIP is currently supported in the contiguous US only.');
  // Allow wider contextual aerial crops in the random trainer (up to 1.2 km).
  const p=merc(lon,lat),half=Math.max(10,Math.min(600,spanMeters/2));
- const q=new URLSearchParams({bbox:[p.x-half,p.y-half,p.x+half,p.y+half].map(x=>x.toFixed(2)).join(','),
-  bboxSR:'3857',imageSR:'3857',size:px+','+px,format:'jpg',f:'image'});
- const sources=[
-  SERVICE+'?'+q,
-  'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage?'+q
- ];
- let img=null,errors=[];
- for(const url of sources){
-  try{
-   img=await new Promise((resolve,reject)=>{
-    const image=new Image();
-    const timer=setTimeout(()=>{image.onload=null;image.onerror=null;reject(Error('image service timed out'));},Math.min(timeout,12000));
-    image.crossOrigin='anonymous';
-    image.onload=()=>{clearTimeout(timer);resolve(image);};
-    image.onerror=()=>{clearTimeout(timer);reject(Error('image could not be loaded'));};
-    image.src=url;
-   });
-   break;
-  }catch(err){errors.push(err?.message||String(err));}
- }
- if(!img)throw Error('Both public aerial services failed ('+errors.join(', ')+'). You can still train by uploading an authorized photo.');
- const canvas=document.createElement('canvas');canvas.width=px;canvas.height=px;
- const ctx=canvas.getContext('2d',{willReadFrequently:true});
- if(!ctx)throw Error('Browser cannot analyze image pixels. Try a recent Chrome or Safari version.');
- try{ctx.drawImage(img,0,0,px,px);}
- catch(err){throw Error('Aerial image could not be drawn. Try your own image instead.');}
- let data;
- try{data=ctx.getImageData(0,0,px,px);}
- catch(err){throw Error('Your browser blocked aerial-image pixel access. Upload an authorized image to continue training.');}
+ const rasterService=window.SurfaceStrideImagery;
+ if(!rasterService?.capture)throw Error('New public imagery services did not load. Refresh the page.');
+ const result=await rasterService.capture({
+  left:p.x-half,right:p.x+half,top:p.y+half,bottom:p.y-half
+ },px,{timeoutPerSource:Math.min(8000,Math.max(4500,timeout/2)),onProgress});
+ const {canvas,raster:data}=result;
+ const imagerySource=result.source;
  const picker=window.SurfaceStrideGroundPicker;
  if(preferOpenGround&&!picker?.choose)throw Error('Open-ground scanner did not load. Refresh the trainer.');
  const spot=preferOpenGround?picker.choose(data):null;
@@ -194,7 +172,7 @@ async function capture(lat,lon,{spanMeters=45,px=384,timeout=22000,preferOpenGro
  }
  const sample={vector:spot?picker.focus(data,spot.x,spot.y):features(data),
   preview:canvas.toDataURL('image/jpeg',.91),lat,lon,source:'NAIP',
-  patchMeters:half*2,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.',
+  patchMeters:half*2,imagerySource,note:'Public NAIP imagery, effective detail is limited by native acquisition resolution.',
   targetX:spot?spot.x/px:.5,targetY:spot?spot.y/px:.5,
   selection:spot?'candidate-open-ground':'original-center',
   _raster:preferOpenGround?data:null,
