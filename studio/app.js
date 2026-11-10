@@ -16,7 +16,7 @@ const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,pr
  strictSoft:true,allowRoadLinks:true,includeLikely:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
  routeOptions:[],optionIndex:0,optionLayer:null,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
- aerialOn:false,aerialCandidates:[],aerialBusy:false,
+ aerialOn:false,aerialCandidates:[],aerialRegions:[],aerialStats:null,aerialFilter:'all',aerialBusy:false,
  routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
  bottomOpen:false,bottomTab:'elevation',saved:[]};
 let snackbarTimer=0,manualTimer=0,lastRouteRequest=0;
@@ -809,46 +809,107 @@ function aerialPopup(candidate){
  });
  div.append(heading,p,note,button,view);return div;
 }
+const AERIAL_COLORS={trail:'#ffbc62',grass:'#70c47d',tree:'#256b3e',
+ dirt:'#b77b4f',gravel:'#d5ae80',hardscape:'#8ea4bc',
+ building:'#b78aa9',paved:'#90a9ba',water:'#45a4d9',unknown:'#9e9e9e'};
+const AERIAL_NAMES={trail:'Possible narrow trail',grass:'Possible grass',
+ tree:'Possible tree canopy',dirt:'Possible dirt',gravel:'Possible gravel',
+ hardscape:'Roof or pavement — unclear',building:'Possible building roof',
+ paved:'Possible pavement',water:'Possible water',unknown:'Unknown material'};
+function matchesAerial(kind){
+ const f=st.aerialFilter;
+ if(f==='all')return true;
+ if(f==='ground')return ['grass','dirt','gravel'].includes(kind);
+ if(f==='barriers')return ['tree','hardscape','building','paved','water'].includes(kind);
+ return f===kind;
+}
+function aerialSurfacePopup(c){
+ const div=document.createElement('div');div.className='trail-review';
+ const title=document.createElement('h3');title.textContent=AERIAL_NAMES[c.kind]||c.kind;
+ const explanation=document.createElement('p');explanation.textContent=c.reason||'Color/texture-based candidate.';
+ const warning=document.createElement('p');warning.className='muted';
+ warning.textContent='Unverified aerial guess. This mark is NOT a mapped walking path and cannot enter route generation automatically.';
+ div.append(title,explanation,warning);
+ if(c.modelGuess){
+  const m=document.createElement('p');m.className='muted';
+  m.textContent='Locally trained model guesses '+c.modelGuess+' (not verified).';div.append(m);
+ }
+ return div;
+}
+function drawAerialDiscoveries(){
+ const layer=st.aerialLayer;if(!layer)return;
+ layer.clearLayers();
+ const A=window.SurfaceStrideAerial,box=st.aerialStats?.inspectedBounds;
+ if(box&&A?._test?.earth){
+  const a=A._test.earth(box.left,box.bottom),b=A._test.earth(box.right,box.top);
+  L.rectangle([[a.lat,a.lon],[b.lat,b.lon]],{
+   color:'#8bd8b2',weight:1.3,dashArray:'4 7',fillOpacity:.012,
+   opacity:.8,interactive:false
+  }).addTo(layer);
+ }
+ if(matchesAerial('trail'))for(const c of st.aerialCandidates){
+  const line=L.polyline([[c.a.lat,c.a.lon],[c.b.lat,c.b.lon]],{
+   color:AERIAL_COLORS.trail,weight:4.8,dashArray:'5 7',opacity:.95,interactive:true});
+  line.bindPopup(()=>aerialPopup(c),{maxWidth:280});
+  line.on('click',e=>L.DomEvent.stopPropagation(e));line.addTo(layer);
+ }
+ for(const c of st.aerialRegions){
+  if(!matchesAerial(c.kind))continue;
+  const marker=L.circleMarker([c.center.lat,c.center.lon],{
+   radius:5.3,color:'#fff',fillColor:AERIAL_COLORS[c.kind]||'#999',
+   weight:1,opacity:.95,fillOpacity:.87
+  });
+  marker.bindTooltip(AERIAL_NAMES[c.kind]||c.kind);
+  marker.bindPopup(()=>aerialSurfacePopup(c),{maxWidth:280});
+  marker.on('click',e=>L.DomEvent.stopPropagation(e));marker.addTo(layer);
+ }
+ const counts=st.aerialStats?.counts||{};
+ const listed=Object.entries(counts).filter(([,n])=>n>0)
+  .sort((a,b)=>b[1]-a[1]).map(([k,n])=>(AERIAL_NAMES[k]||k)+': '+n);
+ $('aerialCounts').textContent=st.aerialCandidates.length+
+  ' possible trail locations · '+st.aerialRegions.length+
+  ' sampled land-cover observations'+(listed.length?' · '+listed.join(' · '):'')+
+  '. These are not exhaustive or ground-verified.';
+}
 function clearAerial(){
  st.aerialLayer.clearLayers();st.aerialOn=false;st.aerialCandidates=[];
+ st.aerialRegions=[];st.aerialStats=null;
  $('aerialBtn').classList.remove('active');
  $('aerialStatus').textContent='Aerial suggestions hidden. Scan another area or trace a path manually.';
+ $('aerialCounts').textContent='No aerial survey findings shown.';
 }
 async function scanAerial(){
  if(st.aerialBusy||!st.map)return;
  const A=window.SurfaceStrideAerial;
- if(!A?.scan){$('aerialStatus').textContent='Aerial detection script was blocked. Refresh the page.';return;}
+ if(!A?.scan){$('aerialStatus').textContent='Aerial scanner unavailable. Refresh the page.';return;}
  st.aerialBusy=true;$('aerialScanBtn').disabled=true;
- $('aerialStatus').textContent='Scanning several aerial patches for narrow visible trail corridors…';
+ $('aerialStatus').textContent='Scanning multiple aerial tiles for trails, ground, trees, hardscape and water…';
  try{
-  const candidates=await A.scan(st.map,{onProgress:p=>{
-    $('aerialStatus').textContent='Aerial scan: '+p.done+'/'+p.total+' patches · '+
-      p.candidates+' possible trail corridors'+(p.errorCount?' · '+p.errorCount+' imagery failures':'')+'…';
-   }});
-  st.aerialCandidates=candidates;st.aerialLayer.clearLayers();
-  for(const candidate of candidates){
-   const l=L.polyline([[candidate.a.lat,candidate.a.lon],[candidate.b.lat,candidate.b.lon]],{
-    color:'#f3bd65',
-    weight:4.7,dashArray:'5 7',opacity:.9,interactive:true});
-   l.bindPopup(()=>aerialPopup(candidate),{maxWidth:275});
-   l.on('click',e=>L.DomEvent.stopPropagation(e));
-   l.addTo(st.aerialLayer);
-  }
-  st.aerialOn=candidates.length>0;
+  const detections=await A.scan(st.map,{maxPatches:16,onProgress:p=>{
+   $('aerialStatus').textContent='Aerial tile '+p.done+'/'+p.total+
+    ' · '+p.candidates+' trail candidates · '+(p.regionCount||0)+
+    ' surface observations'+(p.errorCount?' · '+p.errorCount+' failed':'')+'…';
+  }});
+  st.aerialCandidates=detections;
+  st.aerialRegions=detections.regions||[];
+  st.aerialStats=detections.stats||null;
+  st.aerialOn=st.aerialCandidates.length>0||st.aerialRegions.length>0;
   $('aerialBtn').classList.toggle('active',st.aerialOn);
-  const stats=candidates.stats||{};
-  $('aerialStatus').textContent=candidates.length?
-   candidates.length+' possible narrow trail corridors across '+(stats.scanned||1)+
-    ' inspected aerial patches. All are unverified; click to review. '+
-    (stats.clipped?'Very wide map view: only the central 1.35 km was inspected. Zoom in or pan to scan farther trails.':''):
-   'No convincing narrow trails found in these '+(stats.scanned||1)+
-    ' aerial patches. Trees, shadows and low imagery resolution can hide real paths. '+ 
-    (stats.clipped?'Zoom in or pan; only the center of this wide view was inspected.':'');
-  message(candidates.length?candidates.length+' possible image lines shown; verify before use.':
-   'No aerial line suggestions here. You can trace a missing trail manually.',6500);
+  drawAerialDiscoveries();
+  const stats=st.aerialStats||{};
+  $('aerialStatus').textContent='Scanned '+(stats.scanned||0)+' aerial tiles: '+
+   detections.length+' possible trails, '+st.aerialRegions.length+
+   ' land-cover observations. '+
+   (stats.failed?stats.failed+' tiles failed. ':'')+
+   (stats.clipped?'Wide map: central 1.9 km scanned. Pan and scan the rest. ':
+    'Inspected current map area. ')+
+   'All detections are unverified; no trail added automatically.';
+  message(st.aerialOn?'Found several categories of aerial candidates. Use the filter to inspect them.':
+   'No clear features found. Try a different zoom or location.',6500);
  }catch(err){
-  $('aerialStatus').textContent='Aerial scan unavailable: '+(err?.message||err)+'. Try tracing the path yourself.';
-  message('Aerial scanner unavailable. Manual trail tracing still works.',5500);
+  $('aerialStatus').textContent='Aerial imagery unavailable: '+(err?.message||err)+
+   '. Mapped-trail search and manual tracing still work.';
+  message('Could not complete the aerial scan; see the status for details.',5500);
  }finally{st.aerialBusy=false;$('aerialScanBtn').disabled=false;}
 }
 function confirmTracedTrails(label){
@@ -1119,6 +1180,9 @@ function wires(){
  $('gravelBtn').addEventListener('click',()=>toggleGravel());
  $('aerialBtn').addEventListener('click',scanAerial);
  $('aerialScanBtn').addEventListener('click',scanAerial);
+ $('aerialFilter').addEventListener('change',e=>{
+  st.aerialFilter=e.target.value;drawAerialDiscoveries();
+ });
  $('clearAerialBtn').addEventListener('click',clearAerial);
  $('traceTrailBtn').addEventListener('click',toggleTrace);
  $('confirmTraceGravelBtn').addEventListener('click',()=>confirmTracedTrails('gravel'));
