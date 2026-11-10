@@ -66,7 +66,7 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
 </style>
 </head>
 <body>
-<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V8</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
+<header><div class="logo">surface<span>stride.</span><small>RANDOM SURFACE TRAINER · V9</small></div><a class="back" href="./?v=surface-trainer-v6">← Route Studio</a></header>
 <main class="container">
  <div class="topline">
   <div><div class="eyebrow">SURFACE RECOGNITION LAB</div><h1>Look. <em>Label.</em> Repeat.</h1><p class="intro">The trainer searches random Austin aerial images for clear ground and puts the target there, rather than on trees. Label the surface beneath the target.</p></div>
@@ -123,10 +123,11 @@ h1{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:36px;f
    </div>
   </section>
  </div>
- <p class="footnote"><b>Image source:</b> public USGS/USDA NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
+ <p class="footnote"><b>Image source:</b> public Texas, USDA and USGS NAIP aerial imagery, not Google Maps. The images are cropped and enlarged, but cannot reveal detail beyond their native resolution. The browser learns from the numerical image features you label. The open-ground detector is a heuristic and can mistake rooftops or bright canopy for ground. You can move the target or skip the photo; your label is always the ground truth for this local model. Images aren't saved with training labels. Enlarging an image cannot recover detail finer than the original aerial photograph.</p>
 </main>
-<script src="./ground-picker.js?v=clear-ground-v8"></script>
-<script src="./surface-vision.js?v=clear-ground-v8"></script>
+<script src="./ground-picker.js?v=imagery-fallback-v9"></script>
+<script src="./imagery-providers.js?v=imagery-fallback-v9"></script>
+<script src="./surface-vision.js?v=imagery-fallback-v9"></script>
 <script>
 (function(){
 'use strict';
@@ -197,7 +198,8 @@ async function loadRandom(reuse=false){
    position=(reuse&&attempt===0&&state.lastCoords)?state.lastCoords:randomLocation();
    try{
     sample=await V.capture(position.lat,position.lon,{
-     spanMeters:state.span,px:640,timeout:13000,preferOpenGround:true
+     spanMeters:state.span,px:640,timeout:13000,preferOpenGround:true,
+     onProgress:label=>message(label+' Looking for a clear ground surface…','loading')
     });
     break;
    }catch(err){
@@ -218,7 +220,8 @@ async function loadRandom(reuse=false){
   $('imageFrame').classList.add('has-image');
   $('sampleTitle').textContent='Clear-ground candidate #'+state.sampleNo;
   $('locationLabel').textContent=position.zone.toUpperCase();
-  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m across · target avoids likely tree canopy';
+  $('scaleNote').textContent='Approx. '+Math.round(sample.patchMeters)+'m · '+(sample.imagerySource||'public aerial imagery')+
+   ' · target avoids likely tree canopy';
   message('Open-ground spot suggested. Check the target and label it, click to move it, or skip if unclear.','');
  }catch(err){
   if(version!==state.version)return;
