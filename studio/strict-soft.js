@@ -181,7 +181,7 @@ function joinWalk(a,b){
  if(a.ids.at(-1)!==b.ids[0])throw Error('Disconnected route parts');
  return {ids:a.ids.concat(b.ids.slice(1)),edges:a.edges.concat(b.edges)};
 }
-function outBack(graph,start,target,length,shape){
+function outBack(graph,start,length,shape){
  const search=shortest(graph,start);
  const half=shape==='out-and-back'?length/2:length;
  let best=null,score=Infinity;
@@ -216,7 +216,7 @@ function findLoop(graph,start,length){
    }
    if(u!==v)continue;
    chain.reverse();es.reverse();
-   const cyc={ids:chain.concat([top.node]),edges:es.concat([next.edge])};
+   const cyc={ids:chain.concat([v]),edges:es.concat([next.edge])};
    const size=cyc.edges.reduce((sum,e)=>sum+e.length,0);
    if(size>=40&&size<length*3+2500)candidates.push({walk:cyc,meters:size,anchor:v});
   }
