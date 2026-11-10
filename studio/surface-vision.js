@@ -5,7 +5,7 @@
  */
 (function(){
 'use strict';
-const R=6378137,LABELS=['gravel','dirt','grass','paved','tree','building','unknown'];
+const R=6378137,LABELS=['gravel','dirt','grass','paved','tree','building','water','unknown'];
 const TRAIN='surfacestride.studio.vision.examples.v1';
 const REVIEWS='surfacestride.studio.vision.reviewedSegments.v1';
 const CONNECTORS='surfacestride.studio.vision.confirmedConnectors.v1';

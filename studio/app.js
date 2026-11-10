@@ -570,7 +570,8 @@ function trainerCounts(){
  const c=VISION.count(),total=Object.values(c).reduce((a,b)=>a+b,0);
  box.textContent='Examples saved only in this browser: '+total+
   ' · gravel '+c.gravel+' · dirt '+c.dirt+' · grass '+c.grass+
-  ' · paved '+c.paved+' · trees '+c.tree+' · roofs '+c.building+' · unknown '+c.unknown+
+  ' · paved '+c.paved+' · trees '+c.tree+' · roofs '+c.building+
+  ' · water '+c.water+' · unknown '+c.unknown+
   ' · '+VISION.reviewedCount()+' mapped sections human-reviewed.';
 }
 function predictionLine(sample){
