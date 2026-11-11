@@ -812,7 +812,11 @@ function aerialPopup(candidate){
  const div=document.createElement('div');div.className='trail-review';
  const heading=document.createElement('h3');heading.textContent='Possible unmapped narrow path';
  const p=document.createElement('p');
- p.textContent='Aerial pattern: '+candidate.kind+'. Could instead be drainage, a rooftop, a shadow, or bare ground.';
+ p.textContent='Aerial pattern: '+candidate.kind+
+  '. '+(candidate.points?.length?
+    'This longer line was traced from locally learned pixel probabilities. ':
+    'This short line was found with a color/geometry heuristic. ')+
+  'It could instead be drainage, a roof edge, a shadow, or bare ground.';
  const note=document.createElement('p');note.className='muted';
  note.textContent='Unverified image interpretation. No proof of walking access, gravel, or safe connectivity.';
  const button=document.createElement('button');button.textContent='Review and include segment';
@@ -865,8 +869,13 @@ function drawAerialDiscoveries(){
   }).addTo(layer);
  }
  if(matchesAerial('trail'))for(const c of st.aerialCandidates){
-  const line=L.polyline([[c.a.lat,c.a.lon],[c.b.lat,c.b.lon]],{
-   color:AERIAL_COLORS.trail,weight:4.8,dashArray:'5 7',opacity:.95,interactive:true});
+  const learned=Array.isArray(c.points)&&c.points.length>2;
+  const geometry=learned?c.points.map(p=>[p.lat,p.lon]):
+   [[c.a.lat,c.a.lon],[c.b.lat,c.b.lon]];
+  const line=L.polyline(geometry,{
+   color:learned?'#a77bff':AERIAL_COLORS.trail,
+   weight:learned?5.1:4.8,dashArray:learned?'8 4':'5 7',
+   opacity:.95,interactive:true});
   line.bindPopup(()=>aerialPopup(c),{maxWidth:280});
   line.on('click',e=>L.DomEvent.stopPropagation(e));line.addTo(layer);
  }
@@ -917,6 +926,8 @@ async function scanAerial(){
   $('aerialStatus').textContent='Scanned '+(stats.scanned||0)+' aerial tiles: '+
    detections.length+' possible trails, '+st.aerialRegions.length+
    ' land-cover observations. '+
+   (stats.segmentationReady?stats.learnedPaths+' learned continuous path(s). ':
+    'Pixel segmentation is untrained: use Paint trails to teach it. ')+
    (stats.failed?stats.failed+' tiles failed. ':'')+
    (stats.clipped?'Wide map: central 1.9 km scanned. Pan and scan the rest. ':
     'Inspected current map area. ')+

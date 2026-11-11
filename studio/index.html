@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Branch Explorer V16.1</title>
+<title>SurfaceStride Studio | Pixel Trail Lab V17</title>
 <!-- SURFACESTRIDE_STUDIO_BRANCH_EXPLORER_V16 -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
@@ -16,7 +16,7 @@
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>BRANCH EXPLORER V16.1</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>PIXEL TRAIL LAB V17</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
@@ -112,6 +112,8 @@
           <div class="section-label"><span>✧</span> Aerial discovery · multi-category beta</div>
           <p class="hint">Search multiple aerial tiles for possible trails, dirt, gravel, grass, trees, hard surfaces and water. Every finding is an unverified suggestion.</p>
           <button class="secondary-wide" id="aerialScanBtn">Discover all visible surface types ↗</button>
+          <a class="secondary-wide" id="paintTrailLink" href="./paint-trails.html?v=pixel-trail-v17" style="display:block;text-align:center;text-decoration:none;margin-top:8px">✎ Paint trails &amp; train pixel AI ↗</a>
+          <p class="hint">The pixel model learns from painted trail and non-trail examples, then traces connected paths in future aerial scans. Its suggestions are unverified and never automatically added to running routes.</p>
           <label class="aerial-filter-label" for="aerialFilter">Display category</label>
           <select class="aerial-filter" id="aerialFilter">
             <option value="all">All discoveries</option>
@@ -131,7 +133,8 @@
           <p class="hint" id="aerialStatus">No aerial scan yet. Zoom or move the map, then scan.</p>
           <p class="aerial-counts" id="aerialCounts">No aerial survey findings shown.</p>
           <div class="aerial-key">
-            <span><i style="background:#ffbc62"></i>Trails</span>
+            <span><i style="background:#ffbc62"></i>Heuristic trails</span>
+            <span><i style="background:#a77bff"></i>Learned continuous paths</span>
             <span><i style="background:#70c47d"></i>Grass</span>
             <span><i style="background:#256b3e"></i>Trees</span>
             <span><i style="background:#b77b4f"></i>Dirt</span>
@@ -241,7 +244,8 @@
   <p><b>Soft-first route options:</b> Generate several gravel/dirt route candidates across the visible map, including short mapped walkable-road connectors when enabled. The route cards show soft-surface percentage, road distance, and alternative paths together on the map. Switch off road connectors for gravel/dirt-only routing. If a connection is not mapped or confirmed, it is not invented.</p>
   <p><b>Surface trainer:</b> Inspect high-resolution NAIP crops around trails and teach a browser-local color/texture classifier by labeling examples. Predictions remain estimates; manual review is required before strict routing uses a previously unknown segment. Google Maps imagery is not used for model training.</p>
   <p><b>Discover small trails:</b> Reveal even unnamed paths with missing surface tags (yellow dashed). Click a path and choose Add to route to keep its shape as a manually reviewed segment.</p>
-  <p><b>Aerial discovery:</b> Search multiple NAIP image patches for candidate trail lines and ground-cover categories including vegetation, dirt, gravel, pavement/roof ambiguity and water. Zoomed-out views scan a central 1.9 km region to preserve detail. Detections are not guaranteed and no visual guess is automatically added to routing.</p>
+  <p><b>Pixel Trail Lab:</b> Paint both actual trails and non-trail pixels in several public aerial images, train the browser-local segmentation network, then rerun Aerial discovery. Learned purple lines are connected image suggestions, not verified paths; review them before manually tracing and confirming gravel/dirt surfaces. The model is not pretrained and cannot reliably see paths hidden under trees.</p>
+  <p><b>Aerial discovery:</b> Heuristic detections and learned connected paths appear alongside other land-cover suggestions. Wide views still have coverage and detail limits. No visual guess is added automatically to routing.</p>
   <p><b>COROS:</b> Download or share the GPX. Open it with the COROS app on your phone, save to your route library, then sync to your watch.</p>
   <p class="dialog-note">This is an independent route planner, not affiliated with Sherpa Map. Public services have fair-use limits, and unknown surfaces remain unknown.</p>
   <button id="closeHelp2" class="primary-cta">Start exploring ↗</button>
@@ -252,7 +256,8 @@
 <script src="../scout.js?build=studio3"></script>
 <script src="./trail-focus.js?build=trail-recall-v16b"></script>
 <script src="./surface-scout.js?build=all-features-v15"></script>
-<script src="./aerial.js?build=trail-recall-v16b"></script>
+<script src="./trail-segmentation.js?build=pixel-trail-v17"></script>
+<script src="./aerial.js?build=pixel-trail-v17"></script>
 <script src="../share-route.js?build=studio1"></script>
 <script src="./engine.js?build=all-features-v15"></script>
 <script src="./strict-soft.js?build=branch-explorer-v16"></script>
