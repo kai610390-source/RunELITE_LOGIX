@@ -962,6 +962,51 @@ function clearAerial(){
  $('aerialStatus').textContent='Aerial suggestions hidden. Scan another area or trace a path manually.';
  $('aerialCounts').textContent='No aerial survey findings shown.';
 }
+async function scanForestTracks(){
+ if(st.aerialBusy||!st.map)return;
+ const F=window.SurfaceStrideForestTracks,loader=STRICT?._test?.loadVisible;
+ if(!F?.inspect||!loader){
+  $('aerialStatus').textContent='Map-based forest-road detector unavailable. Refresh the Studio.';return;
+ }
+ st.aerialBusy=true;
+ $('forestScanBtn').disabled=true;
+ $('aerialStatus').textContent='Searching OpenStreetMap tracks across the visible map (no aerial imagery needed)…';
+ try{
+  const center=st.map.getCenter(),b=st.map.getBounds(),
+   bounds=st.zone?{south:st.zone.sw.lat,north:st.zone.ne.lat,
+    west:st.zone.sw.lng,east:st.zone.ne.lng}:
+    {south:b.getSouth(),north:b.getNorth(),west:b.getWest(),east:b.getEast()};
+  const loaded=await loader({lat:center.lat,lon:center.lng},5,{
+   bounds,onProgress:p=>$('aerialStatus').textContent=
+    'Loading mapped track regions '+p.completed+'/'+p.total+
+    ' ('+p.loaded+' available, '+p.failed+' unavailable)…'
+  });
+  const found=F.inspect(loaded.elements,{maxTracks:500,maxGaps:35});
+  st.aerialMappedTracks=found.tracks;st.aerialGaps=found.gaps;
+  st.aerialStats={...(st.aerialStats||{}),mappedTracks:found.tracks.length,
+   possibleGaps:found.gaps.length,missingMapTiles:loaded.missing,
+   forestOnly:true};
+  st.aerialFilter='forest';$('aerialFilter').value='forest';
+  st.aerialOn=st.aerialCandidates.length>0||st.aerialRegions.length>0||
+   st.aerialMappedTracks.length>0||st.aerialGaps.length>0;
+  $('aerialBtn').classList.toggle('active',st.aerialOn);
+  drawAerialDiscoveries();
+  $('aerialStatus').textContent='Found '+found.tracks.length+
+   ' mapped tracks/paths ('+found.counts.probableSoft+
+   ' gravel/dirt-like from tags, '+found.counts.unknown+
+   ' unknown surface), and '+found.gaps.length+
+   ' possible gaps. Purple = mapped likely soft; muted = unknown.'+
+   (loaded.missing?' '+loaded.missing+' map regions unavailable.':'')+
+   (loaded.region?.clipped?' Very wide view clipped to a 7.5 km survey.':'')+
+   ' Check actual surfaces and walking access before running.';
+  message(found.tracks.length?
+   'Mapped forest tracks found. Choose All discoveries or Possible gaps to see more.' :
+   'No accessible mapped tracks found here. Try a nearby area or Aerial Scout.',6500);
+ }catch(err){
+  $('aerialStatus').textContent='Mapped forest-track search unavailable: '+
+   (err?.message||err)+'. You can still use aerial scanning or manual tracing.';
+ }finally{st.aerialBusy=false;$('forestScanBtn').disabled=false;}
+}
 async function scanAerial(){
  if(st.aerialBusy||!st.map)return;
  const A=window.SurfaceStrideAerial;
@@ -1276,6 +1321,7 @@ function wires(){
  $('gravelBtn').addEventListener('click',()=>toggleGravel());
  $('aerialBtn').addEventListener('click',scanAerial);
  $('aerialScanBtn').addEventListener('click',scanAerial);
+ $('forestScanBtn').addEventListener('click',scanForestTracks);
  $('paintTrailLink').addEventListener('click',e=>{
   const point=st.map?.getCenter();
   if(!point)return;
