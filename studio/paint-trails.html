@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SurfaceStride | Paint and Train Trail Segmentation</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#244734;background:#eef4ed}
+*{box-sizing:border-box}body{margin:0}header{background:white;border-bottom:1px solid #d5e5d6;padding:15px max(18px,calc((100vw - 1230px)/2));display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+header strong{font-size:18px;color:#1c653c}header a{color:#27714a;font-weight:700;text-decoration:none}main{max-width:1230px;padding:23px 16px 55px;margin:auto}.intro{max-width:900px;color:#67816c;line-height:1.55}
+h1{font-size:27px;margin:6px 0}.layout{display:grid;grid-template-columns:minmax(280px,670px) minmax(270px,1fr);gap:19px;margin-top:19px}
+.panel{padding:16px;background:#fff;border:1px solid #d8e6d7;border-radius:14px;box-shadow:0 3px 16px #214e3011}h2{font-size:15px;margin:0 0 12px}
+button,.link{cursor:pointer;border:1px solid #cedfce;background:#f5faf5;padding:10px 12px;border-radius:9px;color:#25583c;font-size:12px;font-weight:750}
+button.primary,.active{background:#20754a!important;color:#fff!important;border-color:#20754a!important}
+button:disabled{cursor:not-allowed;opacity:.45}button:focus-visible{outline:3px solid #4fa774}
+.controls{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+#canvasWrap{width:100%;max-width:640px;aspect-ratio:1;background:#e4efe7;border:1px solid #d7e8da;border-radius:10px;position:relative;overflow:hidden;touch-action:none}
+#imageCanvas,#paintCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#paintCanvas{cursor:crosshair}
+label{display:block;font-weight:700;font-size:12px;margin:12px 0 6px}
+input[type=number],input[type=range]{max-width:100%}input[type=number]{width:90px;padding:7px;border:1px solid #ceddcd;border-radius:8px}
+.muted{color:#6e8877;font-size:12px;line-height:1.5}
+.stat{padding:8px;border-radius:9px;background:#f2f7f1;margin-top:9px;font-size:13px}
+.status{margin-top:12px;font-size:12px;color:#246849;line-height:1.5;padding:10px;border:1px solid #d9e9d9;border-radius:9px;background:#f5faf5}
+.legend{display:flex;gap:12px;font-size:11px;margin-top:10px;flex-wrap:wrap;color:#627f68}
+.legend b{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:middle}
+#previewImage{width:100%;max-width:320px;border-radius:8px}
+section+section{margin-top:12px}.warning{font-size:11px;color:#867752;line-height:1.45}
+@media(max-width:850px){.layout{grid-template-columns:1fr}}
+</style></head>
+<body><header><strong>SurfaceStride · Pixel Trail Lab <small style="color:#7e9885">V17</small></strong>
+<a href="./?v=pixel-trail-v17">← Back to Route Builder</a></header>
+<main><h1>Teach it the actual shape of trails.</h1>
+<p class="intro">Paint over real trail pixels in an aerial image, then paint some things that are <b>not trails</b> (trees, rooftops, grass, pavement, shadows). Train a small local segmentation model and preview its traced paths. The model lives in your browser, and predictions remain unverified until you review them.</p>
+<div class="layout">
+<section class="panel">
+<h2>1. Pick an aerial image and paint it</h2>
+<div class="controls">
+<button id="loadBtn" class="primary">Load aerial image here</button>
+<button id="randomBtn">Different nearby image</button>
+<label for="fileInput" style="margin:0"><span class="link" style="display:inline-block">Upload my own aerial photo</span></label>
+<input id="fileInput" type="file" accept="image/*" hidden>
+</div>
+<div id="canvasWrap"><canvas id="imageCanvas" width="448" height="448"></canvas><canvas id="paintCanvas" width="448" height="448"></canvas></div>
+<div class="legend"><span><b style="background:#42e9ad"></b>Trail</span><span><b style="background:#ff6e78"></b>Not trail</span><span><b style="background:#55b4ff"></b>Model prediction</span></div>
+<div class="controls">
+<button data-tool="trail" class="active">Paint trail</button>
+<button data-tool="background">Paint NOT trail</button>
+<button data-tool="eraser">Erase</button>
+<button id="undoBtn">Undo last stroke</button>
+<button id="clearBtn">Clear paint</button>
+</div>
+<label for="brushSize">Brush size: <span id="brushText">9</span> pixels</label>
+<input type="range" id="brushSize" min="2" max="32" value="9" style="width:100%">
+<p class="muted">Follow the thin centerline of every trail you can see. Paint non-trail pixels near roofs and treetops too, so the model learns what to reject. Draw on several different aerial photos to generalize.</p>
+</section>
+<aside class="panel">
+<h2>2. Add examples and train</h2>
+<div class="controls"><button id="addBtn" class="primary">Add painted labels</button><button id="trainBtn">Train model</button></div>
+<div class="stat" id="counts">0 trail pixels · 0 non-trail pixels</div>
+<div class="status" id="status" role="status">Load an image to start. No model is pretrained.</div>
+<h2 style="margin-top:23px">3. Preview full trail shapes</h2>
+<div class="controls"><button id="previewBtn">Preview segmentation</button><button id="hidePreviewBtn">Hide preview</button></div>
+<p class="muted" id="previewSummary">Predicted path lines will appear over the image in blue. They are not confirmed walking routes.</p>
+<div class="stat"><b>Model status:</b> <span id="readiness">Untrained</span></div>
+<h2 style="margin-top:23px">4. Keep your training</h2>
+<div class="controls"><button id="exportBtn">Export dataset + model</button>
+<label for="importFile" style="margin:0"><span class="link" style="display:inline-block">Import dataset</span></label>
+<input type="file" accept=".json,application/json" id="importFile" hidden></div>
+<button id="resetBtn" style="color:#963f42">Reset this model</button>
+<p class="warning">Training examples and weights are stored in this browser. Export the dataset if you want to move it elsewhere. Don't label paths you cannot visually distinguish. Predictions do not establish public access, safety, or trail continuity.</p>
+</aside></div></main>
+<script src="./imagery-providers.js?build=pixel-trail-v17"></script>
+<script src="./trail-segmentation.js?build=pixel-trail-v17"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id),D=448;
+const image=$('imageCanvas'),paint=$('paintCanvas'),ictx=image.getContext('2d',{willReadFrequently:true}),
+pctx=paint.getContext('2d');
+const model=window.SurfaceStrideTrailSegmentation;
+let raster=null,labels=new Uint8Array(D*D),tool='trail',painting=false,last=null,
+strokes=[],overlay=null,location=null,source='aerial',groupNumber=0,busy=false;
+const R=6378137;
+const status=t=>$('status').textContent=t;
+function refresh(){
+ const c=model.counts();
+ $('counts').textContent=c.positive+' trail pixels · '+c.negative+
+  ' NOT-trail pixels · '+c.images+' labeled images · '+c.iterations+' training epochs';
+ $('readiness').textContent=model.ready()?'Trained (experimental, needs real-image testing)':
+  c.trained?'Needs more balanced labels':'Not trained';
+ $('trainBtn').disabled=busy||c.positive<20||c.negative<20;
+ $('previewBtn').disabled=busy||!raster||!model.ready();
+ $('addBtn').disabled=busy||!raster;
+ $('loadBtn').disabled=busy;$('randomBtn').disabled=busy;
+}
+function clearPaint(){
+ labels=new Uint8Array(D*D);strokes=[];last=null;overlay=null;
+ pctx.clearRect(0,0,D,D);
+}
+function renderPaint(){
+ pctx.clearRect(0,0,D,D);
+ const imageData=pctx.createImageData(D,D),data=imageData.data;
+ for(let i=0;i<labels.length;i++){
+  const value=labels[i];if(!value)continue;
+  const z=i*4;
+  data[z]=value===1?50:255;data[z+1]=value===1?232:83;
+  data[z+2]=value===1?159:96;data[z+3]=105;
+ }
+ pctx.putImageData(imageData,0,0);
+ if(overlay){
+  const {paths}=overlay;
+  pctx.lineWidth=2.7;pctx.strokeStyle='#52bdff';pctx.globalAlpha=.95;
+  for(const line of paths){
+   const ratio=D/overlay.probabilities.width;
+   pctx.beginPath();line.points.forEach((p,i)=>{
+    if(!i)pctx.moveTo(p.x*ratio,p.y*ratio);
+    else pctx.lineTo(p.x*ratio,p.y*ratio);
+   });pctx.stroke();
+  }
+  pctx.globalAlpha=1;
+ }
+}
+function setImage(r,description){
+ if(!r?.data)throw Error('No readable pixels in this image.');
+ raster=r;clearPaint();ictx.putImageData(r,0,0);
+ source=description;groupNumber++;
+ status('Loaded '+description+'. Paint trail AND non-trail areas, then add labels.');
+ refresh();
+}
+async function loadAt(lat,lon){
+ busy=true;refresh();status('Loading public NAIP imagery…');
+ try{
+  const x=R*lon*Math.PI/180,y=R*Math.log(Math.tan(Math.PI/4+lat*Math.PI/360)),half=140;
+  const result=await window.SurfaceStrideImagery.capture({
+   left:x-half,right:x+half,bottom:y-half,top:y+half
+  },D,{onProgress:t=>status(t),timeoutPerSource:6500});
+  setImage(result.raster,result.source+' · '+lat.toFixed(5)+', '+lon.toFixed(5));
+  location={lat,lon};
+ }catch(err){status('Could not load public imagery: '+(err?.message||err)+
+  '. You can upload a photo instead.');}
+ finally{busy=false;refresh();}
+}
+function baseLocation(){
+ const params=new URLSearchParams(location.search),lat=Number(params.get('lat')),
+ lon=Number(params.get('lon'));
+ return lat>24&&lat<50&&lon< -66&&lon> -125?{lat,lon}:{lat:30.282,lon:-97.742};
+}
+function brush(x,y){
+ const radius=Number($('brushSize').value)/2,value=tool==='trail'?1:tool==='background'?2:0;
+ const left=Math.max(0,Math.floor(x-radius)),right=Math.min(D-1,Math.ceil(x+radius)),
+ top=Math.max(0,Math.floor(y-radius)),bottom=Math.min(D-1,Math.ceil(y+radius));
+ for(let py=top;py<=bottom;py++)for(let px=left;px<=right;px++){
+  if((px-x)**2+(py-y)**2<=radius**2)labels[py*D+px]=value;
+ }
+}
+function paintAt(event){
+ const rect=paint.getBoundingClientRect();
+ const x=(event.clientX-rect.left)/rect.width*D,
+  y=(event.clientY-rect.top)/rect.height*D;
+ if(last){
+  const steps=Math.ceil(Math.hypot(x-last.x,y-last.y)/2);
+  for(let i=1;i<=steps;i++)brush(last.x+(x-last.x)*i/steps,last.y+(y-last.y)*i/steps);
+ }else brush(x,y);
+ last={x,y};overlay=null;renderPaint();
+}
+paint.addEventListener('pointerdown',e=>{
+ if(!raster)return;
+ painting=true;last=null;strokes.push(new Uint8Array(labels));
+ if(strokes.length>12)strokes.shift();
+ paint.setPointerCapture(e.pointerId);paintAt(e);
+});
+paint.addEventListener('pointermove',e=>{if(painting)paintAt(e);});
+for(const name of ['pointerup','pointercancel','lostpointercapture'])
+ paint.addEventListener(name,()=>{painting=false;last=null;});
+document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>{
+ tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('active',x===b));
+}));
+$('brushSize').addEventListener('input',e=>$('brushText').textContent=e.target.value);
+$('undoBtn').addEventListener('click',()=>{
+ if(!strokes.length)return;labels=strokes.pop();overlay=null;renderPaint();
+});
+$('clearBtn').addEventListener('click',()=>{clearPaint();renderPaint();});
+$('loadBtn').addEventListener('click',()=>{const p=location||baseLocation();loadAt(p.lat,p.lon);});
+$('randomBtn').addEventListener('click',()=>{
+ const p=location||baseLocation(),angle=Math.random()*Math.PI*2,range=250+Math.random()*1200;
+ loadAt(p.lat+Math.cos(angle)*range/111195,
+  p.lon+Math.sin(angle)*range/(111195*Math.cos(p.lat*Math.PI/180)));
+});
+$('fileInput').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  const bitmap=await createImageBitmap(file);ictx.clearRect(0,0,D,D);
+  const scale=Math.min(D/bitmap.width,D/bitmap.height);
+  const width=bitmap.width*scale,height=bitmap.height*scale;
+  ictx.fillStyle='#ddd';ictx.fillRect(0,0,D,D);
+  ictx.drawImage(bitmap,(D-width)/2,(D-height)/2,width,height);
+  setImage(ictx.getImageData(0,0,D,D),'uploaded image');
+ }catch(err){status('Unable to read uploaded image: '+err.message);}
+});
+$('addBtn').addEventListener('click',()=>{
+ try{
+  const c=model.addAnnotated(raster,labels,{group:source+'-'+groupNumber});
+  status('Added '+c.added+' balanced labeled pixels. Train now, or mark another image.');
+  clearPaint();renderPaint();refresh();
+ }catch(err){status(err.message);}
+});
+$('trainBtn').addEventListener('click',()=>{
+ busy=true;refresh();status('Training the local trail-pixel model…');
+ setTimeout(()=>{
+  try{
+   const fit=model.train({epochs:14});
+   status('Trained '+fit.iterations+' total epochs. Final sample loss: '+
+    fit.loss.toFixed(3)+'. Test on unseen aerial imagery before trusting results.');
+  }catch(err){status(err.message)}
+  finally{busy=false;refresh()}
+ },25);
+});
+$('previewBtn').addEventListener('click',()=>{
+ busy=true;refresh();status('Tracing possible trails from predicted pixels…');
+ setTimeout(()=>{
+  try{
+   overlay=model.segment(raster,{size:224,maxPaths:65});
+   renderPaint();
+   $('previewSummary').textContent=overlay.paths.length+
+    ' connected candidate paths drawn in blue. Inspect for false roads, roofs, or canopy.';
+   status('Preview complete. These candidates do not automatically become routes.');
+  }catch(err){status(err.message);}
+  finally{busy=false;refresh();}
+ },25);
+});
+$('hidePreviewBtn').addEventListener('click',()=>{overlay=null;renderPaint();});
+function download(content,name){
+ const blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob);
+ const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();
+ a.remove();URL.revokeObjectURL(url);
+}
+$('exportBtn').addEventListener('click',()=>download(model.exportData(),'surfacestride-trail-pixels.json'));
+$('importFile').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  model.importData(await file.text(),{replace:false});
+  status('Imported labels. Retrain the combined dataset to update the model.');
+ }catch(err){status(err.message)}
+ refresh();
+});
+$('resetBtn').addEventListener('click',()=>{
+ if(!confirm('Erase all locally stored trail-pixel labels and model weights?'))return;
+ model.reset();status('Pixel Trail Lab reset. Existing SurfaceStride surface examples were not touched.');
+ refresh();
+});
+refresh();const initial=baseLocation();location=initial;
+loadAt(initial.lat,initial.lon);
+})();
+</script></body></html>
