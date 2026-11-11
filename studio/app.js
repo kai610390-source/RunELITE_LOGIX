@@ -16,7 +16,7 @@ const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,pr
  strictSoft:true,allowRoadLinks:true,allowBranchRetracing:true,includeLikely:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
  routeOptions:[],optionIndex:0,optionLayer:null,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
- aerialOn:false,aerialCandidates:[],aerialRegions:[],aerialStats:null,aerialFilter:'all',aerialBusy:false,
+ aerialOn:false,aerialCandidates:[],aerialRegions:[],aerialMappedTracks:[],aerialGaps:[],aerialStats:null,aerialFilter:'all',aerialBusy:false,
  routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
  bottomOpen:false,bottomTab:'elevation',saved:[]};
 let snackbarTimer=0,manualTimer=0,lastRouteRequest=0;
@@ -841,6 +841,9 @@ function matchesAerial(kind){
  const f=st.aerialFilter;
  if(f==='all')return true;
  if(f==='ground')return ['grass','dirt','gravel'].includes(kind);
+ if(f==='forest')return kind==='forest';
+ if(f==='gaps')return kind==='gap';
+ if(f==='trail'&&kind==='forest')return true;
  if(f==='barriers')return ['tree','hardscape','building','paved','water'].includes(kind);
  return f===kind;
 }
@@ -856,6 +859,41 @@ function aerialSurfacePopup(c){
   m.textContent='Locally trained model guesses '+c.modelGuess+' (not verified).';div.append(m);
  }
  return div;
+}
+function mappedForestPopup(c){
+ const div=document.createElement('div');div.className='trail-review';
+ const h=document.createElement('h3');h.textContent=c.name||'Mapped woodland track';
+ const detail=document.createElement('p');
+ detail.textContent=c.description+' · '+c.distanceMeters+' m of mapped geometry.'+
+  (c.tracktype?' Tracktype '+c.tracktype+'.':'');
+ const warning=document.createElement('p');warning.className='muted';
+ warning.textContent='The line is mapped in OpenStreetMap; overhead trees may hide it. '+
+  'A map entry does not prove a gravel surface, passable route or legal walking access. '+
+  'Check locally before using it.';
+ div.append(h,detail,warning);
+ if(Number.isFinite(Number(c.wayId))&&c.wayId>0){
+  const link=document.createElement('a');
+  link.textContent='Inspect this road in OpenStreetMap';
+  link.href='https://www.openstreetmap.org/way/'+encodeURIComponent(c.wayId);
+  link.target='_blank';link.rel='noopener noreferrer';
+  div.append(link);
+ }
+ return div;
+}
+function mappedGapPopup(c){
+ const div=document.createElement('div');div.className='trail-review';
+ const h=document.createElement('h3');h.textContent='Possible break between mapped trail ends';
+ const explanation=document.createElement('p');
+ explanation.textContent=c.description+' About '+c.distanceMeters+' m long.';
+ const warning=document.createElement('p');warning.className='muted';
+ warning.textContent='This dashed line is only a proposed connection. It is NOT part of automatic routing.';
+ const b=document.createElement('button');
+ b.textContent='Trace this gap for manual confirmation';
+ b.addEventListener('click',()=>{
+  st.map.closePopup();if(!st.traceOn)toggleTrace();
+  message('Trace only a path you have verified as accessible. Then confirm its real surface.',6500);
+ });
+ div.append(h,explanation,warning,b);return div;
 }
 function drawAerialDiscoveries(){
  const layer=st.aerialLayer;if(!layer)return;
@@ -879,6 +917,24 @@ function drawAerialDiscoveries(){
   line.bindPopup(()=>aerialPopup(c),{maxWidth:280});
   line.on('click',e=>L.DomEvent.stopPropagation(e));line.addTo(layer);
  }
+ if(matchesAerial('forest'))for(const c of st.aerialMappedTracks){
+  if(!Array.isArray(c.points)||c.points.length<2)continue;
+  const line=L.polyline(c.points.map(p=>[p.lat,p.lon]),{
+   color:c.surface==='unknown'?'#9c9db5':'#935cd5',
+   weight:c.surface==='unknown'?3.8:5.1,
+   dashArray:c.surface==='unknown'?'3 7':'9 5',opacity:.94,interactive:true});
+  line.bindTooltip((c.surface==='unknown'?'Mapped track, unknown surface':
+   'Mapped '+c.surface+'-like forest track')+' · '+(c.name||'unnamed'),{sticky:true});
+  line.bindPopup(()=>mappedForestPopup(c),{maxWidth:310});
+  line.on('click',e=>L.DomEvent.stopPropagation(e));line.addTo(layer);
+ }
+ if(matchesAerial('gap'))for(const c of st.aerialGaps){
+  const line=L.polyline([[c.a.lat,c.a.lon],[c.b.lat,c.b.lon]],{
+   color:'#f38b68',weight:4.2,opacity:.95,dashArray:'2 8',interactive:true});
+  line.bindTooltip('Possible missing connection · '+c.distanceMeters+' m',{sticky:true});
+  line.bindPopup(()=>mappedGapPopup(c),{maxWidth:310});
+  line.on('click',e=>L.DomEvent.stopPropagation(e));line.addTo(layer);
+ }
  for(const c of st.aerialRegions){
   if(!matchesAerial(c.kind))continue;
   const marker=L.circleMarker([c.center.lat,c.center.lon],{
@@ -893,13 +949,15 @@ function drawAerialDiscoveries(){
  const listed=Object.entries(counts).filter(([,n])=>n>0)
   .sort((a,b)=>b[1]-a[1]).map(([k,n])=>(AERIAL_NAMES[k]||k)+': '+n);
  $('aerialCounts').textContent=st.aerialCandidates.length+
-  ' possible trail locations · '+st.aerialRegions.length+
+  ' image-based trail locations · '+st.aerialMappedTracks.length+
+  ' mapped woodland roads/tracks · '+st.aerialGaps.length+
+  ' suggested map gaps (NOT routable) · '+st.aerialRegions.length+
   ' sampled land-cover observations'+(listed.length?' · '+listed.join(' · '):'')+
   '. These are not exhaustive or ground-verified.';
 }
 function clearAerial(){
  st.aerialLayer.clearLayers();st.aerialOn=false;st.aerialCandidates=[];
- st.aerialRegions=[];st.aerialStats=null;
+ st.aerialRegions=[];st.aerialMappedTracks=[];st.aerialGaps=[];st.aerialStats=null;
  $('aerialBtn').classList.remove('active');
  $('aerialStatus').textContent='Aerial suggestions hidden. Scan another area or trace a path manually.';
  $('aerialCounts').textContent='No aerial survey findings shown.';
@@ -918,17 +976,23 @@ async function scanAerial(){
   }});
   st.aerialCandidates=detections;
   st.aerialRegions=detections.regions||[];
+  st.aerialMappedTracks=detections.mappedTracks||[];
+  st.aerialGaps=detections.mappedGaps||[];
   st.aerialStats=detections.stats||null;
-  st.aerialOn=st.aerialCandidates.length>0||st.aerialRegions.length>0;
+  st.aerialOn=st.aerialCandidates.length>0||
+   st.aerialRegions.length>0||st.aerialMappedTracks.length>0||st.aerialGaps.length>0;
   $('aerialBtn').classList.toggle('active',st.aerialOn);
   drawAerialDiscoveries();
   const stats=st.aerialStats||{};
   $('aerialStatus').textContent='Scanned '+(stats.scanned||0)+' aerial tiles: '+
-   detections.length+' possible trails, '+st.aerialRegions.length+
-   ' land-cover observations. '+
+   detections.length+' image-based trail candidates, '+
+   st.aerialMappedTracks.length+' mapped forest tracks, '+
+   st.aerialGaps.length+' possible gaps (not routable), and '+
+   st.aerialRegions.length+' land-cover observations. '+
+   (stats.mappedFailure?'Map track lookup failed: '+stats.mappedFailure+'. ':'')+
    (stats.segmentationReady?stats.learnedPaths+' learned continuous path(s). ':
     'Pixel segmentation is untrained: use Paint trails to teach it. ')+
-   (stats.failed?stats.failed+' tiles failed. ':'')+
+   (stats.failed?stats.failed+' aerial tiles failed (mapped tracks can still appear). ':'')+
    (stats.clipped?'Wide map: central 1.9 km scanned. Pan and scan the rest. ':
     'Inspected current map area. ')+
    'All detections are unverified; no trail added automatically.';
