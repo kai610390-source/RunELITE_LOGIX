@@ -33,7 +33,13 @@ function mapArea(map){
    right=center.x-w/2+w*(ix+1)/cols,
    bottom=center.y-h/2+h*iy/rows,
    top=center.y-h/2+h*(iy+1)/rows;
-  cells.push({left,right,bottom,top});
+  // Overlap tile boundaries so a trail that crosses a seam is not discarded
+  // by the local line detector's margin. Clip to the actual survey bounds.
+  const pad=35;
+  cells.push({left:Math.max(center.x-w/2,left-pad),
+   right:Math.min(center.x+w/2,right+pad),
+   bottom:Math.max(center.y-h/2,bottom-pad),
+   top:Math.min(center.y+h/2,top+pad)});
  }
  return {cells,clipped:actualW>1900||actualH>1900,
   total:cells.length,width:Math.round(actualW),height:Math.round(actualH),
@@ -53,8 +59,10 @@ function mergeCandidates(items,max=36){
  };
  for(const item of items){
   if(accepted.length>=max)break;
-  const redundant=accepted.some(other=>
-   other.kind===item.kind&&meterDistance(item.center,other.center)<18);
+  // Deduplicate only almost identical positions. Nearby parallel paths can
+ // be 3-10 meters apart, and should remain individually reviewable.
+ const redundant=accepted.some(other=>
+  other.kind===item.kind&&meterDistance(item.center,other.center)<3.5);
   if(!redundant)accepted.push(item);
  }
  return accepted;
@@ -89,7 +97,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
    // Limit scanning to actual aerial detail instead of interpolating pixels.
    const scale=Math.max(box.right-box.left,box.top-box.bottom)/size;
    if(scale>2.1){errors.push('Pixel scale too low for skinny trails');return;}
-   const found=trail.screenCandidates(image.raster,{maxCandidates:14});
+   const found=trail.screenCandidates(image.raster,{maxCandidates:32});
    for(const spot of found){
     const center=pixelToEarth(spot.x,spot.y,box,size);
     const step=Math.min(20,Math.max(8,30/Math.max(1,scale)));
@@ -123,7 +131,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  }
  const workers=Array.from({length:Math.min(3,boxes.length)},()=>worker());
  await Promise.all(workers);
- const out=mergeCandidates(candidates,96);
+ const out=mergeCandidates(candidates,240);
  // Trail candidates are lines; land-cover candidates are point observations.
  // Keep both collections separate so no unverified area becomes a route.
  const cover=mergeCandidates(regions,180);
