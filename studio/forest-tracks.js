@@ -82,22 +82,37 @@ function gapCandidates(tracks,{maxGapMeters=85,maxGaps=24}={}){
   }
  }
  const ranked=[];
- for(let i=0;i<ends.length;i++)for(let j=i+1;j<ends.length;j++){
-  const a=ends[i],b=ends[j];if(a.wayId===b.wayId||a.nodeId===b.nodeId)continue;
-  // Avoid joining ends where one is a missing node along an otherwise
-  // connected OSM way, or where either angle implies a wrong-way shortcut.
-  const delta=toLocal(a.point,b.point),distance=norm(delta);
-  if(distance<8||distance>maxGapMeters)continue;
-  const forward=dot(a.heading,delta)/distance,
-   reverse=-dot(b.heading,delta)/distance;
-  if(forward<.68||reverse<.68)continue;
-  const score=.52+(forward+reverse)*.15-distance/maxGapMeters*.22;
-  ranked.push({kind:'possible-mapped-gap',category:'forest',source:'geometry-inference',
-   a:a.point,b:b.point,center:{lat:(a.point.lat+b.point.lat)/2,
-    lon:(a.point.lon+b.point.lon)/2},
-   distanceMeters:Number(distance.toFixed(1)),score,
-   description:'Two separately mapped path ends align. The gap may be canopy, missing map data, or an actual dead end. NOT verified or routable.',
-   wayIds:[a.wayId,b.wayId]});
+ // Spatial lookup avoids O(n^2) comparisons when a city-sized view
+ // contains thousands of disconnected mapped path endpoints.
+ const cellSize=Math.max(30,maxGapMeters),grid=new Map();
+ const cosine=Math.cos((ends[0]?.point.lat||30)*Math.PI/180);
+ const key=(x,y)=>x+':'+y;
+ for(let i=0;i<ends.length;i++){
+  const a=ends[i];
+  const x=a.point.lon*111195*cosine,y=a.point.lat*111195;
+  const gx=Math.floor(x/cellSize),gy=Math.floor(y/cellSize);
+  for(let ox=-1;ox<=1;ox++)for(let oy=-1;oy<=1;oy++){
+   for(const j of grid.get(key(gx+ox,gy+oy))||[]){
+    const b=ends[j];
+    if(a.wayId===b.wayId||a.nodeId===b.nodeId)continue;
+    const delta=toLocal(a.point,b.point),distance=norm(delta);
+    if(distance<8||distance>maxGapMeters)continue;
+    const forward=dot(a.heading,delta)/distance,
+     reverse=-dot(b.heading,delta)/distance;
+    if(forward<.68||reverse<.68)continue;
+    const score=.52+(forward+reverse)*.15-distance/maxGapMeters*.22;
+    ranked.push({kind:'possible-mapped-gap',category:'forest',
+     source:'geometry-inference',
+     a:a.point,b:b.point,center:{lat:(a.point.lat+b.point.lat)/2,
+      lon:(a.point.lon+b.point.lon)/2},
+     distanceMeters:Number(distance.toFixed(1)),score,
+     description:'Two separately mapped path ends align. The gap may be canopy, missing map data, or an actual dead end. NOT verified or routable.',
+     wayIds:[a.wayId,b.wayId]});
+   }
+  }
+  const cell=key(gx,gy);
+  if(!grid.has(cell))grid.set(cell,[]);
+  grid.get(cell).push(i);
  }
  ranked.sort((a,b)=>b.score-a.score);
  const out=[];
