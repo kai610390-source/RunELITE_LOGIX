@@ -77,7 +77,7 @@ const image=$('imageCanvas'),paint=$('paintCanvas'),ictx=image.getContext('2d',{
 pctx=paint.getContext('2d');
 const model=window.SurfaceStrideTrailSegmentation;
 let raster=null,labels=new Uint8Array(D*D),tool='trail',painting=false,last=null,
-strokes=[],overlay=null,location=null,source='aerial',groupNumber=0,busy=false;
+strokes=[],overlay=null,currentLocation=null,source='aerial',groupNumber=0,busy=false;
 const R=6378137;
 const status=t=>$('status').textContent=t;
 function refresh(){
@@ -133,13 +133,13 @@ async function loadAt(lat,lon){
    left:x-half,right:x+half,bottom:y-half,top:y+half
   },D,{onProgress:t=>status(t),timeoutPerSource:6500});
   setImage(result.raster,result.source+' · '+lat.toFixed(5)+', '+lon.toFixed(5));
-  location={lat,lon};
+  currentLocation={lat,lon};
  }catch(err){status('Could not load public imagery: '+(err?.message||err)+
   '. You can upload a photo instead.');}
  finally{busy=false;refresh();}
 }
 function baseLocation(){
- const params=new URLSearchParams(location.search),lat=Number(params.get('lat')),
+ const params=new URLSearchParams(window.location.search),lat=Number(params.get('lat')),
  lon=Number(params.get('lon'));
  return lat>24&&lat<50&&lon< -66&&lon> -125?{lat,lon}:{lat:30.282,lon:-97.742};
 }
@@ -178,9 +178,9 @@ $('undoBtn').addEventListener('click',()=>{
  if(!strokes.length)return;labels=strokes.pop();overlay=null;renderPaint();
 });
 $('clearBtn').addEventListener('click',()=>{clearPaint();renderPaint();});
-$('loadBtn').addEventListener('click',()=>{const p=location||baseLocation();loadAt(p.lat,p.lon);});
+$('loadBtn').addEventListener('click',()=>{const p=currentLocation||baseLocation();loadAt(p.lat,p.lon);});
 $('randomBtn').addEventListener('click',()=>{
- const p=location||baseLocation(),angle=Math.random()*Math.PI*2,range=250+Math.random()*1200;
+ const p=currentLocation||baseLocation(),angle=Math.random()*Math.PI*2,range=250+Math.random()*1200;
  loadAt(p.lat+Math.cos(angle)*range/111195,
   p.lon+Math.sin(angle)*range/(111195*Math.cos(p.lat*Math.PI/180)));
 });
@@ -246,7 +246,7 @@ $('resetBtn').addEventListener('click',()=>{
  model.reset();status('Pixel Trail Lab reset. Existing SurfaceStride surface examples were not touched.');
  refresh();
 });
-refresh();const initial=baseLocation();location=initial;
+refresh();const initial=baseLocation();currentLocation=initial;
 loadAt(initial.lat,initial.lon);
 })();
 </script></body></html>
