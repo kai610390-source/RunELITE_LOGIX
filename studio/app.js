@@ -1212,6 +1212,14 @@ function wires(){
  $('gravelBtn').addEventListener('click',()=>toggleGravel());
  $('aerialBtn').addEventListener('click',scanAerial);
  $('aerialScanBtn').addEventListener('click',scanAerial);
+ $('paintTrailLink').addEventListener('click',e=>{
+  const point=st.map?.getCenter();
+  if(!point)return;
+  const lat=Number(point.lat),lon=Number(point.lng);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
+  e.currentTarget.href='./paint-trails.html?lat='+lat.toFixed(6)+
+   '&lon='+lon.toFixed(6)+'&v=pixel-trail-fix-v171';
+ });
  $('aerialFilter').addEventListener('change',e=>{
   st.aerialFilter=e.target.value;drawAerialDiscoveries();
  });

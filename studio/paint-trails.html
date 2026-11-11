@@ -29,7 +29,7 @@ section+section{margin-top:12px}.warning{font-size:11px;color:#867752;line-heigh
 #canvasWrap.dragging{outline:4px solid #36a96a;outline-offset:2px}
 @media(max-width:850px){.layout{grid-template-columns:1fr}}
 </style></head>
-<body><header><strong>SurfaceStride · Pixel Trail Lab <small style="color:#7e9885">V17</small></strong>
+<body><header><strong>SurfaceStride · Pixel Trail Lab <small style="color:#7e9885">V17.1</small></strong>
 <a href="./?v=pixel-trail-v17">← Back to Route Builder</a></header>
 <main><h1>Teach it the actual shape of trails.</h1>
 <p class="intro">Paint over real trail pixels in an aerial image, then paint some things that are <b>not trails</b> (trees, rooftops, grass, pavement, shadows). Train a small local segmentation model and preview its traced paths. The model lives in your browser, and predictions remain unverified until you review them.</p>
@@ -78,8 +78,8 @@ section+section{margin-top:12px}.warning{font-size:11px;color:#867752;line-heigh
 <button id="resetBtn" style="color:#963f42">Reset this model</button>
 <p class="warning">Training examples and weights are stored in this browser. Export the dataset if you want to move it elsewhere. Don't label paths you cannot visually distinguish. Predictions do not establish public access, safety, or trail continuity.</p>
 </aside></div></main>
-<script src="./imagery-providers.js?build=pixel-trail-v17"></script>
-<script src="./trail-segmentation.js?build=pixel-trail-v17"></script>
+<script src="./imagery-providers.js?build=pixel-trail-fix-v171"></script>
+<script src="./trail-segmentation.js?build=pixel-trail-fix-v171"></script>
 <script>
 (function(){
 'use strict';
@@ -159,7 +159,7 @@ function practiceImage(){
  setImage({data,width:D,height:D},'offline drawing test (not a real aerial photo)',{demo:true});
 }
 function showLoadError(error){
- practiceImage();
+ if(!raster||practice)practiceImage();
  status('Public aerial images could not be loaded ('+error+
   '). Offline drawing test shown instead. Use Upload, drag/drop, or paste a real aerial screenshot to train.');
 }
