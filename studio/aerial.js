@@ -70,6 +70,7 @@ function mergeCandidates(items,max=36){
 async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const imagery=window.SurfaceStrideImagery,trail=window.SurfaceStrideTrailFocus;
  const surfaceScout=window.SurfaceStrideSurfaceScout,vision=window.SurfaceStrideVision;
+ const segmenter=window.SurfaceStrideTrailSegmentation;
  if(!imagery?.capture||!trail?.screenCandidates)
   throw Error('Aerial imagery or trail detector unavailable. Refresh the Studio.');
  let area;
@@ -81,6 +82,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
    total:1,clipped:false,width:540,height:540};
  }else throw Error('No map location to scan');
  const candidates=[],regions=[],errors=[],size=448;
+ let modelLines=0,modelFailures=0;
  const boxes=area.cells.slice(0,Math.max(1,Math.min(16,maxPatches)));
  let completed=0,nextIndex=0;
  const progress=()=>{
@@ -107,6 +109,31 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
      kind:'possible trail corridor',source:'Aerial visual suggestion (unverified)',
      imagerySource:image.source,metersPerPixel:scale,
      detection:'two-sided vegetation + continuous narrow line'});
+   }
+   // An optional trained pixel mask traces continuous candidate paths.
+   // It is never used as evidence of public access or verified gravel/dirt.
+   if(segmenter?.ready?.()){
+    try{
+     const result=segmenter.segment(image.raster,{size:128,maxPaths:18,
+      high:.74,low:.53});
+     const scaleX=size/result.probabilities.width;
+     for(const path of result.paths){
+      if(path.pixels<13||path.confidence<.63)continue;
+      const points=path.points.map(q=>pixelToEarth(q.x*scaleX,q.y*scaleX,box,size));
+      if(points.length<2)continue;
+      const first=points[0],last=points[points.length-1],
+       dx=(first.lon-last.lon)*111195*Math.cos(first.lat*Math.PI/180),
+       dy=(first.lat-last.lat)*111195;
+      if(Math.hypot(dx,dy)<9)continue;
+      const center=points[Math.floor(points.length/2)];
+      candidates.push({a:first,b:last,center,points,score:path.confidence+.25,
+       kind:'learned connected trail',category:'trail',
+       modelConfidence:path.confidence,source:'Local trained pixel-segmentation suggestion (unverified)',
+       imagerySource:image.source,metersPerPixel:scale,
+       detection:'traced connected probability mask; needs manual verification'});
+      modelLines++;
+     }
+    }catch(err){modelFailures++;}
    }
    if(surfaceScout?.inspect){
     const observations=surfaceScout.inspect(image.raster,{
@@ -137,6 +164,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const cover=mergeCandidates(regions,180);
  const counts=surfaceScout?.tally?surfaceScout.tally(cover):{};
  const stats={found:out.length,regions:cover.length,counts,
+  learnedPaths:modelLines,modelFailures,segmentationReady:!!segmenter?.ready?.(),
   scanned:boxes.length,failed:errors.length,
   clipped:area.clipped,inspectedBounds:area.inspectedBounds||null,
   source:'NAIP/USGS public aerial imagery'};
