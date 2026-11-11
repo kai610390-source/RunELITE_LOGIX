@@ -11,7 +11,7 @@ const TYPES=new Set(['path','footway','track','bridleway','pedestrian','cycleway
 const HARD_NO=new Set(['private','no','customers','permit']);
 const MATERIAL={
  gravel:'gravel',fine_gravel:'gravel',pebblestone:'gravel',compacted:'gravel',
- crushed_limestone:'gravel',grit:'gravel',
+ crushed_limestone:'gravel',grit:'gravel',aggregate:'gravel',crushed_stone:'gravel',stabilized:'gravel',
  ground:'dirt',earth:'dirt',dirt:'dirt',soil:'dirt',mud:'dirt',sand:'dirt',woodchips:'dirt'
 };
 let cache={key:null,data:null,time:0};
@@ -25,6 +25,16 @@ function access(t){
  if(HARD_NO.has(t.foot))return false;
  if(HARD_NO.has(t.access)&&!['yes','designated','permissive','official'].includes(t.foot))return false;
  if(t.highway==='proposed'||t.highway==='construction')return false;
+ if(['forestry','agricultural','military','delivery','destination'].includes(t.access)&&
+  !['yes','designated','permissive','official'].includes(t.foot))return false;
+ if(t.highway==='service'){
+  if(['driveway','parking_aisle','alley'].includes(t.service))return false;
+  // Only forest/service tracks with known or strongly suggested unpaved
+  // material are relevant, never ordinary unlabeled urban service roads.
+  return !!MATERIAL[(t.surface||'').trim().toLowerCase()]||
+   ['unpaved','unsealed'].includes(t.surface)||
+   /^grade[2-5]$/.test(t.tracktype||'');
+ }
  return TYPES.has(t.highway);
 }
 function material(t,review,key){
@@ -43,11 +53,14 @@ const PAVED_TAGS=new Set(['paved','asphalt','concrete','concrete:plates','concre
 const PRIVATE_FOOTWAYS=new Set(['sidewalk','crossing','traffic_island']);
 function likelyNatural(t){
  if(!t||PAVED_TAGS.has((t.surface||'').toLowerCase()))return null;
+ if(['unpaved','unsealed'].includes((t.surface||'').toLowerCase()))
+  return {type:'dirt',evidence:'inferred',confidence:.75,
+   reason:'Unpaved surface tag; exact gravel/dirt material not known'};
  if(t.surface&&t.surface!=='unknown'&&t.surface!=='unclassified')return null;
  if(t.paved==='yes'||t.foot==='no'||t.access==='private')return null;
  if(t.footway&&PRIVATE_FOOTWAYS.has(t.footway))return null;
  // Strong unpaved indicators, even without an explicit surface tag.
- if(['grade3','grade4','grade5'].includes(t.tracktype)&&t.highway==='track')
+ if(['grade3','grade4','grade5'].includes(t.tracktype)&&['track','service'].includes(t.highway))
   return {type:'dirt',evidence:'inferred',confidence:.84,reason:'track grade suggests natural ground'};
  if(t.highway==='path'&&(
    t.trail_visibility||t.sac_scale||t.mtb_scale||
@@ -55,8 +68,14 @@ function likelyNatural(t){
   return {type:'dirt',evidence:'inferred',confidence:.76,reason:'mapped informal/hiking trail'};
  if(t.highway==='path'&&!t.lit&&!t.bicycle&&!t.designation&&!t.footway)
   return {type:'dirt',evidence:'inferred',confidence:.52,reason:'untagged mapped path'};
- if(t.highway==='track'&&['grade2'].includes(t.tracktype))
+ if(['track','service'].includes(t.highway)&&['grade2'].includes(t.tracktype))
   return {type:'gravel',evidence:'inferred',confidence:.70,reason:'track grade suggests compacted gravel'};
+ // Many canopy-hidden forestry roads have highway=track but no surface
+ // or tracktype tag. Include only as low-confidence, explicitly inferred
+ // dirt candidates; grade1 is commonly paved and must not be presumed soft.
+ if(t.highway==='track'&&!t.tracktype)
+  return {type:'dirt',evidence:'inferred',confidence:.40,
+   reason:'Mapped forestry/land-access track; gravel/dirt surface unverified'};
  // Do not infer road-adjacent walkways or general bike/pedestrian facilities.
  return null;
 }
