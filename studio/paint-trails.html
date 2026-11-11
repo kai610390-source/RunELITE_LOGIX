@@ -23,6 +23,10 @@ input[type=number],input[type=range]{max-width:100%}input[type=number]{width:90p
 .legend b{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:middle}
 #previewImage{width:100%;max-width:320px;border-radius:8px}
 section+section{margin-top:12px}.warning{font-size:11px;color:#867752;line-height:1.45}
+.coord-row{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.coord-row label{margin:0;font-size:11px}.coord-row input{display:block;margin-top:5px;width:116px}
+.drop-hint{padding:10px;margin:10px 0;font-size:11px;line-height:1.5;color:#486950;background:#eff8ed;border:1px dashed #a6ccad;border-radius:9px}
+#canvasWrap.dragging{outline:4px solid #36a96a;outline-offset:2px}
 @media(max-width:850px){.layout{grid-template-columns:1fr}}
 </style></head>
 <body><header><strong>SurfaceStride · Pixel Trail Lab <small style="color:#7e9885">V17</small></strong>
@@ -35,9 +39,16 @@ section+section{margin-top:12px}.warning{font-size:11px;color:#867752;line-heigh
 <div class="controls">
 <button id="loadBtn" class="primary">Load aerial image here</button>
 <button id="randomBtn">Different nearby image</button>
+<button id="demoBtn">Test drawing offline</button>
 <label for="fileInput" style="margin:0"><span class="link" style="display:inline-block">Upload my own aerial photo</span></label>
 <input id="fileInput" type="file" accept="image/*" hidden>
 </div>
+<div class="coord-row">
+<label>Latitude <input id="latInput" type="number" min="24" max="50" step="0.00001" value="30.28200"></label>
+<label>Longitude <input id="lonInput" type="number" min="-125" max="-66" step="0.00001" value="-97.74200"></label>
+<button type="button" id="loadCoordsBtn">Load these coordinates</button>
+</div>
+<div class="drop-hint" id="dropHint">Can't load imagery? Drop or paste an aerial screenshot here (Cmd+V), or use <b>Upload my own aerial photo</b>. The offline practice image checks that painting works, but cannot be used to train a real-world model.</div>
 <div id="canvasWrap"><canvas id="imageCanvas" width="448" height="448"></canvas><canvas id="paintCanvas" width="448" height="448"></canvas></div>
 <div class="legend"><span><b style="background:#42e9ad"></b>Trail</span><span><b style="background:#ff6e78"></b>Not trail</span><span><b style="background:#55b4ff"></b>Model prediction</span></div>
 <div class="controls">
@@ -49,7 +60,7 @@ section+section{margin-top:12px}.warning{font-size:11px;color:#867752;line-heigh
 </div>
 <label for="brushSize">Brush size: <span id="brushText">9</span> pixels</label>
 <input type="range" id="brushSize" min="2" max="32" value="9" style="width:100%">
-<p class="muted">Follow the thin centerline of every trail you can see. Paint non-trail pixels near roofs and treetops too, so the model learns what to reject. Draw on several different aerial photos to generalize.</p>
+<p class="muted">Follow the thin centerline of every trail you can see. Paint non-trail pixels near roofs and treetops too, so the model learns what to reject. Draw on several different aerial photos to generalize. <b>If the aerial servers fail, a screenshot or uploaded aerial image works without them.</b></p>
 </section>
 <aside class="panel">
 <h2>2. Add examples and train</h2>
@@ -77,7 +88,7 @@ const image=$('imageCanvas'),paint=$('paintCanvas'),ictx=image.getContext('2d',{
 pctx=paint.getContext('2d');
 const model=window.SurfaceStrideTrailSegmentation;
 let raster=null,labels=new Uint8Array(D*D),tool='trail',painting=false,last=null,
-strokes=[],overlay=null,currentLocation=null,source='aerial',groupNumber=0,busy=false;
+strokes=[],overlay=null,currentLocation=null,source='aerial',groupNumber=0,busy=false,practice=false;
 const R=6378137;
 const status=t=>$('status').textContent=t;
 function refresh(){
@@ -88,8 +99,9 @@ function refresh(){
   c.trained?'Needs more balanced labels':'Not trained';
  $('trainBtn').disabled=busy||c.positive<20||c.negative<20;
  $('previewBtn').disabled=busy||!raster||!model.ready();
- $('addBtn').disabled=busy||!raster;
+ $('addBtn').disabled=busy||!raster||practice;
  $('loadBtn').disabled=busy;$('randomBtn').disabled=busy;
+ $('loadCoordsBtn').disabled=busy;
 }
 function clearPaint(){
  labels=new Uint8Array(D*D);strokes=[];last=null;overlay=null;
@@ -118,12 +130,38 @@ function renderPaint(){
   pctx.globalAlpha=1;
  }
 }
-function setImage(r,description){
- if(!r?.data)throw Error('No readable pixels in this image.');
- raster=r;clearPaint();ictx.putImageData(r,0,0);
+function setImage(r,description,{demo=false}={}){
+ if(!r?.data||r.width!==D||r.height!==D)
+  throw Error('This image could not be converted to a 448px readable raster.');
+ raster=r;practice=demo;clearPaint();ictx.putImageData(r,0,0);
  source=description;groupNumber++;
- status('Loaded '+description+'. Paint trail AND non-trail areas, then add labels.');
+ status('Loaded '+description+'. '+(practice?
+  'Drawing works here, but this is FAKE practice imagery. Upload or load a real aerial image to train.':
+  'Paint trail AND non-trail areas, then add labels.'));
  refresh();
+}
+function practiceImage(){
+ const data=new Uint8ClampedArray(D*D*4);
+ for(let y=0;y<D;y++)for(let x=0;x<D;x++){
+  const z=(y*D+x)*4,
+   noise=((x*37+y*53+(x*y)%97)%39)-19,
+   path=Math.abs(x-(195+36*Math.sin(y/65)+.22*y))<7,
+   roof=x>56&&x<145&&y>290&&y<400,
+   water=x>380&&y<185;
+  let r=72+noise*.35,g=124+noise*.65,b=53+noise*.32;
+  if(path){r=168+noise*.12;g=144+noise*.12;b=114+noise*.12;}
+  if(roof){r=179;g=179;b=181;}
+  if(water){r=57;g=102;b=165;}
+  data[z]=Math.max(0,Math.min(255,r));
+  data[z+1]=Math.max(0,Math.min(255,g));
+  data[z+2]=Math.max(0,Math.min(255,b));data[z+3]=255;
+ }
+ setImage({data,width:D,height:D},'offline drawing test (not a real aerial photo)',{demo:true});
+}
+function showLoadError(error){
+ practiceImage();
+ status('Public aerial images could not be loaded ('+error+
+  '). Offline drawing test shown instead. Use Upload, drag/drop, or paste a real aerial screenshot to train.');
 }
 async function loadAt(lat,lon){
  busy=true;refresh();status('Loading public NAIP imagery…');
@@ -134,8 +172,8 @@ async function loadAt(lat,lon){
   },D,{onProgress:t=>status(t),timeoutPerSource:6500});
   setImage(result.raster,result.source+' · '+lat.toFixed(5)+', '+lon.toFixed(5));
   currentLocation={lat,lon};
- }catch(err){status('Could not load public imagery: '+(err?.message||err)+
-  '. You can upload a photo instead.');}
+  $('latInput').value=lat.toFixed(5);$('lonInput').value=lon.toFixed(5);
+ }catch(err){showLoadError(err?.message||String(err));}
  finally{busy=false;refresh();}
 }
 function baseLocation(){
@@ -165,7 +203,8 @@ paint.addEventListener('pointerdown',e=>{
  if(!raster)return;
  painting=true;last=null;strokes.push(new Uint8Array(labels));
  if(strokes.length>12)strokes.shift();
- paint.setPointerCapture(e.pointerId);paintAt(e);
+ if(typeof paint.setPointerCapture==='function')paint.setPointerCapture(e.pointerId);
+ paintAt(e);
 });
 paint.addEventListener('pointermove',e=>{if(painting)paintAt(e);});
 for(const name of ['pointerup','pointercancel','lostpointercapture'])
@@ -179,26 +218,66 @@ $('undoBtn').addEventListener('click',()=>{
 });
 $('clearBtn').addEventListener('click',()=>{clearPaint();renderPaint();});
 $('loadBtn').addEventListener('click',()=>{const p=currentLocation||baseLocation();loadAt(p.lat,p.lon);});
+$('demoBtn').addEventListener('click',()=>{
+ practiceImage();
+ status('Offline drawing test loaded. This synthetic picture is NOT suitable for training on real trails.');
+});
+$('loadCoordsBtn').addEventListener('click',()=>{
+ const lat=Number($('latInput').value),lon=Number($('lonInput').value);
+ if(!(lat>=24&&lat<=50&&lon>=-125&&lon<=-66)){
+  status('Enter valid continental-US coordinates before loading aerial imagery.');return;
+ }
+ loadAt(lat,lon);
+});
 $('randomBtn').addEventListener('click',()=>{
  const p=currentLocation||baseLocation(),angle=Math.random()*Math.PI*2,range=250+Math.random()*1200;
  loadAt(p.lat+Math.cos(angle)*range/111195,
   p.lon+Math.sin(angle)*range/(111195*Math.cos(p.lat*Math.PI/180)));
 });
-$('fileInput').addEventListener('change',async e=>{
- const file=e.target.files?.[0];if(!file)return;
+async function loadImageFile(file){
+ if(!file||!file.type.startsWith('image/')){
+  status('Choose an image file or paste an aerial screenshot.');return;
+ }
+ if(file.size>40*1024*1024){
+  status('Image too large. Crop or compress the screenshot below 40 MB.');return;
+ }
  try{
-  const bitmap=await createImageBitmap(file);ictx.clearRect(0,0,D,D);
-  const scale=Math.min(D/bitmap.width,D/bitmap.height);
-  const width=bitmap.width*scale,height=bitmap.height*scale;
+  const bitmap=await createImageBitmap(file);
+  ictx.clearRect(0,0,D,D);
+  const scale=Math.min(D/bitmap.width,D/bitmap.height),
+    width=bitmap.width*scale,height=bitmap.height*scale;
   ictx.fillStyle='#ddd';ictx.fillRect(0,0,D,D);
   ictx.drawImage(bitmap,(D-width)/2,(D-height)/2,width,height);
-  setImage(ictx.getImageData(0,0,D,D),'uploaded image');
- }catch(err){status('Unable to read uploaded image: '+err.message);}
+  const raster=ictx.getImageData(0,0,D,D);
+  setImage(raster,'uploaded or pasted aerial image');
+  if(typeof bitmap.close==='function')bitmap.close();
+ }catch(err){status('Unable to read image: '+(err?.message||err)+'. Try a PNG or JPEG screenshot.');}
+}
+$('fileInput').addEventListener('change',e=>{
+ const file=e.target.files?.[0];if(file)loadImageFile(file);
+ e.target.value='';
+});
+const drop=$('canvasWrap');
+for(const eventName of ['dragover','dragenter'])
+ drop.addEventListener(eventName,e=>{
+  e.preventDefault();drop.classList.add('dragging');
+ });
+for(const eventName of ['dragleave','drop'])
+ drop.addEventListener(eventName,e=>{
+  e.preventDefault();drop.classList.remove('dragging');
+  if(eventName==='drop')loadImageFile(e.dataTransfer?.files?.[0]);
+ });
+document.addEventListener('paste',e=>{
+ const items=[...(e.clipboardData?.items||[])];
+ const pic=items.find(item=>item.type.startsWith('image/'));
+ if(pic){e.preventDefault();loadImageFile(pic.getAsFile());}
 });
 $('addBtn').addEventListener('click',()=>{
  try{
   const c=model.addAnnotated(raster,labels,{group:source+'-'+groupNumber});
-  status('Added '+c.added+' balanced labeled pixels. Train now, or mark another image.');
+  status('Added '+c.added+' balanced labeled pixels. '+
+   (c.persisted?'Saved in this browser. Train now, or mark another image.':
+    'WARNING: browser storage is full or disabled. Export your dataset NOW to avoid losing labels.'));
   clearPaint();renderPaint();refresh();
  }catch(err){status(err.message);}
 });
@@ -208,7 +287,9 @@ $('trainBtn').addEventListener('click',()=>{
   try{
    const fit=model.train({epochs:14});
    status('Trained '+fit.iterations+' total epochs. Final sample loss: '+
-    fit.loss.toFixed(3)+'. Test on unseen aerial imagery before trusting results.');
+    fit.loss.toFixed(3)+'. '+
+    (fit.persisted?'Model saved. ':'Storage unavailable; export your dataset now. ')+
+    'Test on unseen aerial imagery before trusting results.');
   }catch(err){status(err.message)}
   finally{busy=false;refresh()}
  },25);
@@ -247,6 +328,10 @@ $('resetBtn').addEventListener('click',()=>{
  refresh();
 });
 refresh();const initial=baseLocation();currentLocation=initial;
+$('latInput').value=initial.lat.toFixed(5);
+$('lonInput').value=initial.lon.toFixed(5);
+practiceImage();
+status('Offline drawing test is ready. Loading a real aerial image now…');
 loadAt(initial.lat,initial.lon);
 })();
 </script></body></html>
