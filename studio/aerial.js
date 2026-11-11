@@ -71,6 +71,8 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const imagery=window.SurfaceStrideImagery,trail=window.SurfaceStrideTrailFocus;
  const surfaceScout=window.SurfaceStrideSurfaceScout,vision=window.SurfaceStrideVision;
  const segmenter=window.SurfaceStrideTrailSegmentation;
+ const forest=window.SurfaceStrideForestTracks;
+ const mapLoader=window.SurfaceStrideStrictSoft?._test?.loadVisible;
  if(!imagery?.capture||!trail?.screenCandidates)
   throw Error('Aerial imagery or trail detector unavailable. Refresh the Studio.');
  let area;
@@ -81,6 +83,23 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
   area={cells:[{left:p.x-half,right:p.x+half,bottom:p.y-half,top:p.y+half}],
    total:1,clipped:false,width:540,height:540};
  }else throw Error('No map location to scan');
+ // Map geometry and aerial imagery are independent sources. Mapped woodland
+ // tracks remain discoverable even if tree canopy hides them in imagery OR
+ // the aerial imagery service is blocked by the browser.
+ const mappedTask=(async()=>{
+  if(!forest?.inspect||!mapLoader||!mapOrCenter?.getBounds)return null;
+  const b=mapOrCenter.getBounds(),center=mapOrCenter.getCenter?.
+   call(mapOrCenter)||{lat:(b.getNorth()+b.getSouth())/2,lng:(b.getWest()+b.getEast())/2};
+  try{
+   const loaded=await mapLoader({lat:center.lat,
+    lon:Number.isFinite(center.lng)?center.lng:center.lon},5,{
+    bounds:{south:b.getSouth(),north:b.getNorth(),
+     west:b.getWest(),east:b.getEast()}
+   });
+   return {...forest.inspect(loaded.elements),sourceTiles:loaded.total,
+    missingTiles:loaded.missing};
+  }catch(error){return {tracks:[],gaps:[],error:error?.message||String(error)};}
+ })();
  const candidates=[],regions=[],errors=[],size=448;
  let modelLines=0,modelFailures=0;
  const boxes=area.cells.slice(0,Math.max(1,Math.min(16,maxPatches)));
@@ -158,6 +177,8 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  }
  const workers=Array.from({length:Math.min(3,boxes.length)},()=>worker());
  await Promise.all(workers);
+ const mapped=await mappedTask;
+ const mappedTracks=mapped?.tracks||[],mappedGaps=mapped?.gaps||[];
  const out=mergeCandidates(candidates,240);
  // Trail candidates are lines; land-cover candidates are point observations.
  // Keep both collections separate so no unverified area becomes a route.
@@ -165,16 +186,22 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const counts=surfaceScout?.tally?surfaceScout.tally(cover):{};
  const stats={found:out.length,regions:cover.length,counts,
   learnedPaths:modelLines,modelFailures,segmentationReady:!!segmenter?.ready?.(),
+  mappedTracks:mappedTracks.length,possibleGaps:mappedGaps.length,
+  mappedFailure:mapped?.error||null,missingMapTiles:mapped?.missingTiles||0,
   scanned:boxes.length,failed:errors.length,
   clipped:area.clipped,inspectedBounds:area.inspectedBounds||null,
   source:'NAIP/USGS public aerial imagery'};
  if(typeof onProgress==='function')onProgress({done:boxes.length,total:boxes.length,
   candidates:out.length,regionCount:cover.length,
   errorCount:errors.length,clipped:area.clipped});
- if(!out.length&&errors.length===boxes.length)throw Error('All aerial scan patches failed. '+
-  errors[0]);
+ if(!out.length&&!mappedTracks.length&&errors.length===boxes.length)
+  throw Error('No mapped tracks and all aerial scan patches failed. '+errors[0]+
+   (mapped?.error?' Map extract: '+mapped.error:''));
+
  out.stats=stats;
  out.regions=cover;
+ out.mappedTracks=mappedTracks;
+ out.mappedGaps=mappedGaps;
  return out;
 }
 window.SurfaceStrideAerial={scan,_test:{merc,earth,mapArea,pixelToEarth,mergeCandidates}};
