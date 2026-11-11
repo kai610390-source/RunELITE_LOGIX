@@ -15,10 +15,10 @@ function corridor(data,x,y,dx,dy){
  // Different pixel widths can reveal fine gravel/dirt strips or slightly
  // wider natural paths, including those with bare rather than green flanks.
  let best=null;
- for(const width of [7,14]){
+ for(const width of [4,7,12,18]){
   let cLight=0,c2=0,flank=0,cGreen=0,sGreen=0,vegTogether=0;
   let valid=0,twoSides=0,positive=0,negative=0,sideDiff=0;
-  for(let t=-24;t<=24;t+=4){
+  for(let t=-24;t<=24;t+=3){
    const px=x+dx*t,py=y+dy*t;
    const c=sample(px,py),l=sample(px+nx*width,py+ny*width),r=sample(px-nx*width,py-ny*width);
    if(!c||!l||!r)continue;
@@ -100,7 +100,7 @@ function imageLine(data){
 function screenCandidates(data,{mapped=[],maxCandidates=8}={}){
  const w=data.width,h=data.height;
  if(w<120||h<120)return [];
- const max=Math.max(1,Math.min(18,Math.round(maxCandidates)));
+ const max=Math.max(1,Math.min(40,Math.round(maxCandidates)));
  const raw=[];
  // Mapped path coordinates can appear anywhere in the camera footprint.
  // Keep only those that also show a visually convincing corridor.
@@ -124,7 +124,7 @@ function screenCandidates(data,{mapped=[],maxCandidates=8}={}){
  }
  // Search all of the visible frame, including off-center trails.
  // The margins are the minimum needed for our 24px corridor samples.
- const step=Math.max(5,Math.round(Math.min(w,h)/105)),margin=38;
+ const step=Math.max(7,Math.round(Math.min(w,h)/74)),margin=28;
  for(let y=margin;y<h-margin;y+=step)
   for(let x=margin;x<w-margin;x+=step){
    for(let a=0;a<8;a++){
@@ -139,8 +139,19 @@ function screenCandidates(data,{mapped=[],maxCandidates=8}={}){
  // while preserving candidates from other paths elsewhere in the image.
  raw.sort((a,b)=>b.score-a.score);
  const selected=[];
- const separation=Math.max(45,Math.min(87,Math.round(w*.11)));
+ const separation=Math.max(20,Math.min(38,Math.round(w*.065)));
+ // Prioritize different parts of the image before filling remaining slots.
+ // Otherwise the highest-scoring single trail can consume all candidates.
+ const groups=Array.from({length:16},()=>[]);
  for(const candidate of raw){
+  const col=Math.min(3,Math.floor(candidate.x/w*4));
+  const row=Math.min(3,Math.floor(candidate.y/h*4));
+  if(groups[row*4+col].length<16)groups[row*4+col].push(candidate);
+ }
+ const ordered=[];
+ for(let rank=0;rank<3;rank++)for(const group of groups)if(group[rank])ordered.push(group[rank]);
+ ordered.push(...raw);
+ for(const candidate of ordered){
   if(selected.length>=max)break;
   const repeated=selected.some(prev=>{
    if(Math.hypot(prev.x-candidate.x,prev.y-candidate.y)<separation)return true;
@@ -150,7 +161,7 @@ function screenCandidates(data,{mapped=[],maxCandidates=8}={}){
    // Parallel sightings less than 19px apart are likely the same line,
    // even when quite far along it. Limit the span so curves aren't lost.
    const along=Math.abs((candidate.x-prev.x)*prev.dx+(candidate.y-prev.y)*prev.dy);
-   return across<19&&along<Math.max(160,w*.28);
+   return across<7&&along<Math.max(75,w*.18);
   });
   if(!repeated)selected.push(candidate);
  }
