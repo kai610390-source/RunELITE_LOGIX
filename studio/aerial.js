@@ -71,6 +71,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const imagery=window.SurfaceStrideImagery,trail=window.SurfaceStrideTrailFocus;
  const surfaceScout=window.SurfaceStrideSurfaceScout,vision=window.SurfaceStrideVision;
  const segmenter=window.SurfaceStrideTrailSegmentation;
+ const visual=window.SurfaceStrideVisualInspector;
  const forest=window.SurfaceStrideForestTracks;
  const mapLoader=window.SurfaceStrideStrictSoft?._test?.loadVisible;
  if(!imagery?.capture||!trail?.screenCandidates)
@@ -101,6 +102,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
   }catch(error){return {tracks:[],gaps:[],error:error?.message||String(error)};}
  })();
  const candidates=[],regions=[],errors=[],size=448;
+ let faintLines=0;
  let modelLines=0,modelFailures=0;
  const boxes=area.cells.slice(0,Math.max(1,Math.min(16,maxPatches)));
  let completed=0,nextIndex=0;
@@ -128,6 +130,24 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
      kind:'possible trail corridor',source:'Aerial visual suggestion (unverified)',
      imagerySource:image.source,metersPerPixel:scale,
      detection:'two-sided vegetation + continuous narrow line'});
+   }
+   // Lower-confidence second pass: prioritize recall over certainty and
+   // explicitly label these suggestions as faint, unverified image patterns.
+   if(visual?.scanLoose){
+    const second=visual.scanLoose(image.raster,{limit:20,step:18});
+    for(const spot of second){
+     if(found.some(strong=>Math.hypot(strong.x-spot.x,strong.y-spot.y)<19))continue;
+     const center=pixelToEarth(spot.x,spot.y,box,size);
+     const dx=Math.cos(spot.angle),dy=Math.sin(spot.angle);
+     const span=14;
+     const a=pixelToEarth(spot.x-dx*span,spot.y-dy*span,box,size),
+      b=pixelToEarth(spot.x+dx*span,spot.y+dy*span,box,size);
+     candidates.push({a,b,center,score:spot.score,category:'trail',
+      kind:'faint possible trail',source:'High-recall imagery check (UNVERIFIED)',
+      visualConfidence:'low',imagerySource:image.source,metersPerPixel:scale,
+      detection:'faint two-sided visual strip; could be natural or man-made'});
+     faintLines++;
+    }
    }
    // An optional trained pixel mask traces continuous candidate paths.
    // It is never used as evidence of public access or verified gravel/dirt.
@@ -186,6 +206,7 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  const counts=surfaceScout?.tally?surfaceScout.tally(cover):{};
  const stats={found:out.length,regions:cover.length,counts,
   learnedPaths:modelLines,modelFailures,segmentationReady:!!segmenter?.ready?.(),
+  faintCandidates:faintLines,
   mappedTracks:mappedTracks.length,possibleGaps:mappedGaps.length,
   mappedFailure:mapped?.error||null,missingMapTiles:mapped?.missingTiles||0,
   scanned:boxes.length,failed:errors.length,
@@ -204,5 +225,33 @@ async function scan(mapOrCenter,{onProgress,maxPatches=16}={}){
  out.mappedGaps=mappedGaps;
  return out;
 }
-window.SurfaceStrideAerial={scan,_test:{merc,earth,mapArea,pixelToEarth,mergeCandidates}};
+// Re-fetch a genuinely closer (150m-wide) aerial photo exactly where the
+// user clicks. At 512px this is ~0.3m/pixel, far finer than a map-wide scan.
+async function inspectAt(point,{onProgress=null}={}){
+ const imagery=window.SurfaceStrideImagery;
+ const visual=window.SurfaceStrideVisualInspector;
+ if(!imagery?.capture||!visual?.traceAt)throw Error('Close-up inspector is not loaded.');
+ const lat=Number(point.lat),lon=Number.isFinite(Number(point.lon))?
+  Number(point.lon):Number(point.lng);
+ if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('Choose a point on the map.');
+ const p=merc(lon,lat),half=75,size=512,
+  box={left:p.x-half,right:p.x+half,bottom:p.y-half,top:p.y+half};
+ const image=await imagery.capture(box,size,{
+  timeoutPerSource:6200,onProgress
+ });
+ const paths=visual.traceAt(image.raster,{x:size/2,y:size/2},{limit:3});
+ const candidatePaths=paths.map((path,index)=>{
+  const points=path.points.map(v=>pixelToEarth(v.x,v.y,box,size));
+  const a=points[0],b=points[points.length-1];
+  return {a,b,center:{lat,lon},points,score:path.score+.3,
+   category:'trail',kind:'close-up inspected trail',
+   userSelected:true,visualConfidence:'unverified',source:path.source,
+   imagerySource:image.source,metersPerPixel:150/size,
+   detection:'high-resolution local trail following around your click; not surface verified',
+   uncertainSteps:path.points.filter(p=>p.uncertain).length,index};
+ });
+ return {candidates:candidatePaths,point:{lat,lon},box,imagerySource:image.source,
+  found:paths.length};
+}
+window.SurfaceStrideAerial={scan,inspectAt,_test:{merc,earth,mapArea,pixelToEarth,mergeCandidates}};
 })();
