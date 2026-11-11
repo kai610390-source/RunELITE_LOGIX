@@ -88,7 +88,7 @@ const image=$('imageCanvas'),paint=$('paintCanvas'),ictx=image.getContext('2d',{
 pctx=paint.getContext('2d');
 const model=window.SurfaceStrideTrailSegmentation;
 let raster=null,labels=new Uint8Array(D*D),tool='trail',painting=false,last=null,
-strokes=[],overlay=null,currentLocation=null,source='aerial',groupNumber=0,busy=false,practice=false;
+strokes=[],overlay=null,currentLocation=null,source='aerial',groupNumber=0,busy=false,practice=false,requestId=0;
 const R=6378137;
 const status=t=>$('status').textContent=t;
 function refresh(){
@@ -161,20 +161,25 @@ function practiceImage(){
 function showLoadError(error){
  if(!raster||practice)practiceImage();
  status('Public aerial images could not be loaded ('+error+
-  '). Offline drawing test shown instead. Use Upload, drag/drop, or paste a real aerial screenshot to train.');
+  '). '+(practice?'Offline drawing test shown instead. ':
+   'Your previous uploaded image is still available. ')+
+  'Use Upload, drag/drop, or paste a real aerial screenshot to train.');
 }
 async function loadAt(lat,lon){
+ const request=++requestId;
  busy=true;refresh();status('Loading public NAIP imagery…');
  try{
   const x=R*lon*Math.PI/180,y=R*Math.log(Math.tan(Math.PI/4+lat*Math.PI/360)),half=140;
   const result=await window.SurfaceStrideImagery.capture({
    left:x-half,right:x+half,bottom:y-half,top:y+half
-  },D,{onProgress:t=>status(t),timeoutPerSource:6500});
+  },D,{onProgress:t=>{if(request===requestId)status(t)},timeoutPerSource:6500});
+  if(request!==requestId)return;
   setImage(result.raster,result.source+' · '+lat.toFixed(5)+', '+lon.toFixed(5));
   currentLocation={lat,lon};
   $('latInput').value=lat.toFixed(5);$('lonInput').value=lon.toFixed(5);
- }catch(err){showLoadError(err?.message||String(err));}
- finally{busy=false;refresh();}
+ }catch(err){
+  if(request===requestId)showLoadError(err?.message||String(err));
+ }finally{if(request===requestId){busy=false;refresh();}}
 }
 function baseLocation(){
  const params=new URLSearchParams(window.location.search),lat=Number(params.get('lat')),
@@ -219,7 +224,7 @@ $('undoBtn').addEventListener('click',()=>{
 $('clearBtn').addEventListener('click',()=>{clearPaint();renderPaint();});
 $('loadBtn').addEventListener('click',()=>{const p=currentLocation||baseLocation();loadAt(p.lat,p.lon);});
 $('demoBtn').addEventListener('click',()=>{
- practiceImage();
+ requestId++;busy=false;practiceImage();
  status('Offline drawing test loaded. This synthetic picture is NOT suitable for training on real trails.');
 });
 $('loadCoordsBtn').addEventListener('click',()=>{
@@ -241,8 +246,11 @@ async function loadImageFile(file){
  if(file.size>40*1024*1024){
   status('Image too large. Crop or compress the screenshot below 40 MB.');return;
  }
+ const request=++requestId;
+ busy=false;
  try{
   const bitmap=await createImageBitmap(file);
+  if(request!==requestId){if(bitmap.close)bitmap.close();return;}
   ictx.clearRect(0,0,D,D);
   const scale=Math.min(D/bitmap.width,D/bitmap.height),
     width=bitmap.width*scale,height=bitmap.height*scale;
