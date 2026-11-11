@@ -8,13 +8,23 @@
 'use strict';
 const KEY='surfacestride.trail.pixel-segmentation.v1';
 const FEATURES=16,HIDDEN=18,MAX_EXAMPLES=12000,WORK=224;
-let examples=[],weights=null,iterations=0,images=new Set();
+let examples=[],weights=null,iterations=0,images=new Set(),lastSaved=true;
 function storageGet(){
  try{const s=JSON.parse(localStorage.getItem(KEY)||'null');
-  if(s?.version!==1)return;
-  examples=(Array.isArray(s.examples)?s.examples:[]).filter(e=>
-   (e.y===0||e.y===1)&&Array.isArray(e.x)&&e.x.length===FEATURES&&
-   e.x.every(Number.isFinite)).slice(-MAX_EXAMPLES);
+  if(![1,2].includes(s?.version))return;
+  if(s.version===2&&Array.isArray(s.groups)&&Array.isArray(s.packed)){
+   // Each feature uses one safe UTF-16 codepoint in U+0100..U+01FF:
+   // loss under 1/255 and no JSON escaping overhead.
+   examples=s.packed.map(e=>({
+    x:typeof e[0]==='string'?Array.from(e[0],c=>(c.charCodeAt(0)-256)/255):[],
+    y:e[1],group:s.groups[e[2]]||''
+   })).filter(e=>(e.y===0||e.y===1)&&e.x.length===FEATURES&&
+    e.x.every(Number.isFinite)).slice(-MAX_EXAMPLES);
+  }else{
+   examples=(Array.isArray(s.examples)?s.examples:[]).filter(e=>
+    (e.y===0||e.y===1)&&Array.isArray(e.x)&&e.x.length===FEATURES&&
+    e.x.every(Number.isFinite)).slice(-MAX_EXAMPLES);
+  }
   images=new Set(examples.map(e=>String(e.group||'')));
   if(s.weights?.w1?.length===FEATURES*HIDDEN&&s.weights?.w2?.length===HIDDEN&&
    s.weights.b1?.length===HIDDEN&&Number.isFinite(s.weights.b2)&&
@@ -25,9 +35,19 @@ function storageGet(){
  }catch(e){/* Disabled browser storage: still usable in current tab. */}
 }
 function save(){
- try{localStorage.setItem(KEY,JSON.stringify({
-  version:1,examples,weights,iterations
- }));return true;}catch(e){return false;}
+ try{
+  const groups=[...new Set(examples.map(e=>String(e.group||'')))],
+   index=new Map(groups.map((g,i)=>[g,i]));
+  const packed=examples.map(e=>[
+   e.x.map(v=>String.fromCharCode(256+Math.max(0,Math.min(255,
+    Math.round(v*255))))).join(''),
+   e.y,index.get(String(e.group||''))
+  ]);
+  localStorage.setItem(KEY,JSON.stringify({
+   version:2,groups,packed,weights,iterations
+  }));
+  lastSaved=true;return true;
+ }catch(e){lastSaved=false;return false;}
 }
 function initWeights(){
  const w1=[],w2=[],b1=Array(HIDDEN).fill(0);
@@ -69,7 +89,7 @@ function counts(){
  return {positive:examples.filter(e=>e.y===1).length,
   negative:examples.filter(e=>e.y===0).length,
   images:images.size,trained:iterations>0&&!!weights,
-  iterations,examples:examples.length};
+  iterations,examples:examples.length,persisted:lastSaved};
 }
 function ready(){
  const c=counts();
@@ -112,8 +132,9 @@ function addAnnotated(raster,mask,{group=Date.now().toString(36),maxPerClass=700
  }
  examples=examples.concat(batch).slice(-MAX_EXAMPLES);
  images=new Set(examples.map(e=>String(e.group||'')));
- save();
- return {added:batch.length,positive:positive.length,negative:negative.length,counts:counts()};
+ const persisted=save();
+ return {added:batch.length,positive:positive.length,negative:negative.length,
+  persisted,counts:counts()};
 }
 function train({epochs=16,rate=.023}={}){
  const c=counts();
