@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101d19">
-<title>SurfaceStride Studio | Forest Track Discovery V18.1</title>
+<title>SurfaceStride Studio | Visible Trail Recognition V19</title>
 <!-- SURFACESTRIDE_STUDIO_BRANCH_EXPLORER_V16 -->
 <!-- SURFACESTRIDE_STUDIO_MICROTRAIL_V3 -->
 <meta name="description" content="Free satellite running route studio with manual waypoints, gravel discovery, elevation profiles and GPX/COROS export.">
@@ -16,7 +16,7 @@
   <header class="header">
     <div class="brand">
       <span class="brand-badge"><svg viewBox="0 0 40 40" fill="none"><path d="M6 25c6-6 11-6 16-1s10 3 13-4" stroke="#dcfce7" stroke-width="3" stroke-linecap="round"/><path d="M6 15c6-6 13-6 20 0" stroke="#a6e6b3" stroke-width="3" stroke-linecap="round"/><circle cx="33" cy="12" r="3" fill="white"/></svg></span>
-      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>FOREST TRACKS V18.1</b></small></span>
+      <span><strong>surface<span>stride</span><em>.</em></strong><small>STUDIO <b>VISIBLE TRAILS V19</b></small></span>
     </div>
     <form class="place-search" id="placeForm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="placeInput" type="search" aria-label="Search location" placeholder="Search city, park, or trail..." autocomplete="off"><button type="submit">Search</button></form>
     <div class="head-actions">
@@ -113,7 +113,9 @@
           <p class="hint">Detect gravel/dirt forest roads from map geometry even when canopy hides them from satellite imagery. Also inspect narrow image-based trails, open ground, and aligned but unverified gaps. Mapped tracks are not proof of access or surface.</p>
           <button class="secondary-wide" id="forestScanBtn" type="button">🌲 Find mapped gravel / forest tracks (no aerial needed)</button>
           <p class="hint">First try this for roads obscured by trees. It follows OpenStreetMap road geometry and suggests possible missing links without treating them as verified.</p>
-          <button class="secondary-wide" id="aerialScanBtn">Also scan aerial imagery for unmapped trails ↗</button>
+          <button class="secondary-wide" id="aerialScanBtn">Scan aerial imagery — include faint trails ↗</button>
+          <button class="secondary-wide" id="inspectMissedTrailBtn" type="button">◎ Click a trail the scanner missed</button>
+          <p class="hint">Click the button, then click directly on the visible trail in the map. SurfaceStride will inspect a closer image, mark a likely line in pink, or leave a marker where you clicked. Review the suggestion before adding it to routes.</p>
           <a class="secondary-wide" id="paintTrailLink" href="./paint-trails.html?v=pixel-trail-fix-v171" style="display:block;text-align:center;text-decoration:none;margin-top:8px">✎ Paint trails &amp; train pixel AI ↗</a>
           <p class="hint">The pixel model learns from painted trail and non-trail examples, then traces connected paths in future aerial scans. Its suggestions are unverified and never automatically added to running routes.</p>
           <label class="aerial-filter-label" for="aerialFilter">Display category</label>
@@ -138,6 +140,8 @@
           <p class="aerial-counts" id="aerialCounts">No aerial survey findings shown.</p>
           <div class="aerial-key">
             <span><i style="background:#ffbc62"></i>Heuristic trails</span>
+            <span><i style="background:#56bbdc"></i>Faint unverified trails</span>
+            <span><i style="background:#e553a0"></i>Clicked trail / close-up trace</span>
             <span><i style="background:#a77bff"></i>Learned continuous paths</span>
             <span><i style="background:#935cd5"></i>Mapped gravel/dirt tracks</span>
             <span><i style="background:#9c9db5"></i>Mapped unknown-surface tracks</span>
@@ -266,12 +270,13 @@
 <script src="./surface-scout.js?build=all-features-v15"></script>
 <script src="./trail-segmentation.js?build=pixel-trail-fix-v171"></script>
 <script src="./forest-tracks.js?build=canopy-tracks-v18"></script>
-<script src="./aerial.js?build=canopy-tracks-v18"></script>
+<script src="./visual-tracer.js?build=visible-trails-v19"></script>
+<script src="./aerial.js?build=visible-trails-v19"></script>
 <script src="../share-route.js?build=studio1"></script>
 <script src="./engine.js?build=all-features-v15"></script>
 <script src="./strict-soft.js?build=canopy-tracks-v18"></script>
 <script src="./imagery-providers.js?build=imagery-fallback-v9"></script>
 <script src="./surface-vision.js?build=all-features-v15"></script>
-<script src="./app.js?build=canopy-tracks-v181"></script>
+<script src="./app.js?build=visible-trails-v19"></script>
 </body>
 </html>

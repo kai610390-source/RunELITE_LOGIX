@@ -16,7 +16,7 @@ const st={map:null,route:null,routeVersion:0,mode:'auto',shape:'loop',miles:5,pr
  strictSoft:true,allowRoadLinks:true,allowBranchRetracing:true,includeLikely:true,softMaterial:'both',trainerSample:null,trainerSegment:null,batchBusy:false,aiSuggestions:new Map(),
  routeOptions:[],optionIndex:0,optionLayer:null,
  zoneStage:0,zoneStart:null,zone:null,labelsOn:true,gravelOn:false,traceOn:false,
- aerialOn:false,aerialCandidates:[],aerialRegions:[],aerialMappedTracks:[],aerialGaps:[],aerialStats:null,aerialFilter:'all',aerialBusy:false,
+ aerialOn:false,aerialCandidates:[],inspectedTrailCandidates:[],aerialRegions:[],aerialMappedTracks:[],aerialGaps:[],aerialStats:null,aerialFilter:'all',aerialBusy:false,inspectMissedOn:false,inspectBusy:false,
  routeLayer:null,markerLayer:null,gravelLayer:null,zoneLayer:null,aerialLayer:null,gravelSegments:[],
  bottomOpen:false,bottomTab:'elevation',saved:[]};
 let snackbarTimer=0,manualTimer=0,lastRouteRequest=0;
@@ -63,6 +63,11 @@ function setupMap(){
  window.addEventListener('resize',()=>setTimeout(()=>map.invalidateSize(),100));
 }
 function onMapClick(e){
+ if(st.inspectMissedOn){
+  st.inspectMissedOn=false;
+  $('inspectMissedTrailBtn').classList.remove('active');
+  inspectMissedTrailAt(e.latlng);return;
+ }
  if(st.zoneStage===1){
   st.zone={sw:L.latLng(Math.min(st.zoneStart.lat,e.latlng.lat),Math.min(st.zoneStart.lng,e.latlng.lng)),
    ne:L.latLng(Math.max(st.zoneStart.lat,e.latlng.lat),Math.max(st.zoneStart.lng,e.latlng.lng))};
@@ -808,27 +813,111 @@ async function toggleGravel(force=false){
   message('Map extract unavailable. Try aerial scout or pan to another area.',5000);
  }
 }
+function markInspectMode(){
+ if(st.inspectBusy){message('A close-up inspection is already running.');return;}
+ st.inspectMissedOn=!st.inspectMissedOn;
+ if(st.inspectMissedOn&&st.zoneStage===1)clearZone();
+ $('inspectMissedTrailBtn').classList.toggle('active',st.inspectMissedOn);
+ const msg=st.inspectMissedOn?
+  'Click directly ON a visible trail the scanner missed. A closer aerial image will be inspected at that exact location.':
+  'Close-up trail selection canceled.';
+ $('aerialStatus').textContent=msg;status(msg);
+}
+function loadVisualTraceForReview(candidate){
+ if(!Array.isArray(candidate.points)||candidate.points.length<2){
+  if(!st.traceOn)toggleTrace();
+  st.map?.panTo([candidate.center.lat,candidate.center.lon]);
+  status('A visible trail was reported here, but its shape could not be traced automatically. Click several points along it in Trace mode.');
+  return;
+ }
+ if(!st.traceOn)toggleTrace();
+ const total=candidate.points.length,
+  count=Math.min(15,total),selected=[];
+ for(let i=0;i<count;i++){
+  const index=Math.floor(i*(total-1)/(count-1));
+  const p=candidate.points[index];
+  if(!selected.length||Math.hypot(p.lat-selected[selected.length-1].lat,
+    p.lon-selected[selected.length-1].lon)>.000001)
+   selected.push({lat:p.lat,lon:p.lon,manualToHere:selected.length>0});
+ }
+ if(selected.length<2)return;
+ st.waypoints=selected;drawMarkers();
+ const bb=L.latLngBounds(selected.map(p=>[p.lat,p.lon]));
+ if(bb.isValid())st.map.fitBounds(bb.pad(.35),{animate:true,maxZoom:19});
+ status('Drafted '+selected.length+' editable points along a predicted trail. Move incorrect markers and inspect access/surface. Only click Confirm Gravel or Dirt when you have actually verified it.');
+ message('Predicted trail ready for review — not yet added to routes.',7000);
+}
+async function inspectMissedTrailAt(latlng){
+ if(st.inspectBusy)return;
+ const A=window.SurfaceStrideAerial;
+ if(!A?.inspectAt){
+  $('aerialStatus').textContent='Close-up inspector did not load. Refresh Studio.';return;
+ }
+ st.inspectBusy=true;$('inspectMissedTrailBtn').disabled=true;
+ const spot={lat:latlng.lat,lon:latlng.lng};
+ $('aerialStatus').textContent='Inspecting a high-resolution aerial image at your clicked trail…';
+ try{
+  const result=await A.inspectAt(spot,{onProgress:note=>{
+   $('aerialStatus').textContent='Loading close-up: '+note;
+  }});
+  const candidates=result.candidates.length?result.candidates:[{
+   a:spot,b:spot,center:spot,category:'trail',kind:'user-reported missed trail',
+   markOnly:true,userSelected:true,source:'Your click, not confirmed by image recognition',
+   score:0
+  }];
+  st.inspectedTrailCandidates.push(...candidates);
+  st.inspectedTrailCandidates=st.inspectedTrailCandidates.slice(-48);
+  st.aerialOn=true;st.aerialFilter='trail';$('aerialFilter').value='trail';
+  $('aerialBtn').classList.add('active');drawAerialDiscoveries();
+  $('aerialStatus').textContent=result.found?
+   'Marked '+result.found+' possible trail shape(s) near your click in pink. Select a line to review and correct it before routing.':
+   'Marked your exact click in pink, but image pixels were too ambiguous to trace a reliable line. Click the marker and use manual Trace to add what you see.';
+  status($('aerialStatus').textContent);
+ }catch(err){
+  const candidate={a:spot,b:spot,center:spot,category:'trail',
+   kind:'user-reported missed trail',markOnly:true,userSelected:true,score:0,
+   source:'Your clicked location; aerial close-up unavailable'};
+  st.inspectedTrailCandidates.push(candidate);
+  st.inspectedTrailCandidates=st.inspectedTrailCandidates.slice(-48);
+  st.aerialOn=true;st.aerialFilter='trail';$('aerialFilter').value='trail';
+  $('aerialBtn').classList.add('active');drawAerialDiscoveries();
+  $('aerialStatus').textContent='Marked the missed trail where you clicked. Close-up imagery failed: '+
+   (err?.message||err)+'. You can trace it manually from the marker.';
+ }finally{st.inspectBusy=false;$('inspectMissedTrailBtn').disabled=false;}
+}
 function aerialPopup(candidate){
  const div=document.createElement('div');div.className='trail-review';
- const heading=document.createElement('h3');heading.textContent='Possible unmapped narrow path';
+ const heading=document.createElement('h3');
+ heading.textContent=candidate.markOnly?'You found a missing trail':
+  candidate.userSelected?'Close-up possible trail':'Possible unmapped narrow path';
  const p=document.createElement('p');
- p.textContent='Aerial pattern: '+candidate.kind+
-  '. '+(candidate.points?.length?
-    'This longer line was traced from locally learned pixel probabilities. ':
-    'This short line was found with a color/geometry heuristic. ')+
-  'It could instead be drainage, a roof edge, a shadow, or bare ground.';
+ p.textContent=candidate.markOnly?
+  'You marked this location as a trail, but the app could not trace its shape. Trace it manually to create an editable sketch.':
+  'Detected: '+candidate.kind+'. '+(candidate.userSelected?
+   'The app inspected a closer aerial image around your clicked point. ':
+   candidate.visualConfidence==='low'?
+   'This is a faint, low-confidence pattern intentionally kept for review. ':
+   candidate.points?.length?
+   'A connected line was predicted from image data. ':
+   'A narrow image feature was detected. ')+
+  'It could still be a roof edge, ditch, shadow or vegetation.';
  const note=document.createElement('p');note.className='muted';
- note.textContent='Unverified image interpretation. No proof of walking access, gravel, or safe connectivity.';
- const button=document.createElement('button');button.textContent='Review and include segment';
- button.addEventListener('click',()=>addReviewedSegment(candidate.a,candidate.b,'aerial image line'));
- const view=document.createElement('button');view.textContent='Inspect in Instant Street View';
- view.style.background='#edf5ea';view.style.color='#275b42';
- view.addEventListener('click',()=>{
-  const lat=(candidate.a.lat+candidate.b.lat)/2,lon=(candidate.a.lon+candidate.b.lon)/2;
-  window.open('https://www.instantstreetview.com/s/'+lat.toFixed(6)+','+lon.toFixed(6),
-   '_blank','noopener,noreferrer');
+ note.textContent='Unverified suggestion. Verify walking access and actual gravel/dirt surface before using any trace for routing.';
+ const button=document.createElement('button');
+ button.textContent=candidate.points?.length?'Load shape for editable review':
+  'Manually trace this location';
+ button.addEventListener('click',()=>{
+  st.map?.closePopup();loadVisualTraceForReview(candidate);
  });
- div.append(heading,p,note,button,view);return div;
+ div.append(heading,p,note,button);
+ if(candidate.a&&candidate.b&&!candidate.markOnly){
+  const view=document.createElement('button');view.textContent='Check nearby street-level imagery';
+  view.addEventListener('click',()=>window.open(
+   'https://www.instantstreetview.com/s/'+candidate.center.lat.toFixed(6)+','+
+    candidate.center.lon.toFixed(6),'_blank','noopener,noreferrer'));
+  div.append(view);
+ }
+ return div;
 }
 const AERIAL_COLORS={trail:'#ffbc62',grass:'#70c47d',tree:'#256b3e',
  dirt:'#b77b4f',gravel:'#d5ae80',hardscape:'#8ea4bc',
@@ -906,13 +995,24 @@ function drawAerialDiscoveries(){
    opacity:.8,interactive:false
   }).addTo(layer);
  }
- if(matchesAerial('trail'))for(const c of st.aerialCandidates){
+ if(matchesAerial('trail'))for(const c of st.aerialCandidates.concat(st.inspectedTrailCandidates)){
+  if(c.markOnly){
+   const pin=L.circleMarker([c.center.lat,c.center.lon],{
+    color:'#fff',fillColor:'#e553a0',weight:2,fillOpacity:.98,radius:9});
+   pin.bindTooltip('You marked a missed visible trail',{direction:'top'});
+   pin.bindPopup(()=>aerialPopup(c),{maxWidth:310});
+   pin.on('click',e=>L.DomEvent.stopPropagation(e));pin.addTo(layer);
+   continue;
+  }
   const learned=Array.isArray(c.points)&&c.points.length>2;
   const geometry=learned?c.points.map(p=>[p.lat,p.lon]):
    [[c.a.lat,c.a.lon],[c.b.lat,c.b.lon]];
   const line=L.polyline(geometry,{
-   color:learned?'#a77bff':AERIAL_COLORS.trail,
-   weight:learned?5.1:4.8,dashArray:learned?'8 4':'5 7',
+   color:c.userSelected?'#e553a0':c.visualConfidence==='low'?'#56bbdc':
+    learned?'#a77bff':AERIAL_COLORS.trail,
+   weight:c.userSelected?6:learned?5.1:4.8,
+   dashArray:c.userSelected?'9 4':c.visualConfidence==='low'?'2 7':
+    learned?'8 4':'5 7',
    opacity:.95,interactive:true});
   line.bindPopup(()=>aerialPopup(c),{maxWidth:280});
   line.on('click',e=>L.DomEvent.stopPropagation(e));line.addTo(layer);
@@ -949,7 +1049,8 @@ function drawAerialDiscoveries(){
  const listed=Object.entries(counts).filter(([,n])=>n>0)
   .sort((a,b)=>b[1]-a[1]).map(([k,n])=>(AERIAL_NAMES[k]||k)+': '+n);
  $('aerialCounts').textContent=st.aerialCandidates.length+
-  ' image-based trail locations · '+st.aerialMappedTracks.length+
+  ' image-based trail candidates · '+st.inspectedTrailCandidates.length+
+  ' close-up inspected/reported trails · '+st.aerialMappedTracks.length+
   ' mapped woodland roads/tracks · '+st.aerialGaps.length+
   ' suggested map gaps (NOT routable) · '+st.aerialRegions.length+
   ' sampled land-cover observations'+(listed.length?' · '+listed.join(' · '):'')+
@@ -958,6 +1059,8 @@ function drawAerialDiscoveries(){
 function clearAerial(){
  st.aerialLayer.clearLayers();st.aerialOn=false;st.aerialCandidates=[];
  st.aerialRegions=[];st.aerialMappedTracks=[];st.aerialGaps=[];st.aerialStats=null;
+ st.inspectedTrailCandidates=[];st.inspectMissedOn=false;
+ $('inspectMissedTrailBtn').classList.remove('active');
  $('aerialBtn').classList.remove('active');
  $('aerialStatus').textContent='Aerial suggestions hidden. Scan another area or trace a path manually.';
  $('aerialCounts').textContent='No aerial survey findings shown.';
@@ -1030,7 +1133,8 @@ async function scanAerial(){
   drawAerialDiscoveries();
   const stats=st.aerialStats||{};
   $('aerialStatus').textContent='Scanned '+(stats.scanned||0)+' aerial tiles: '+
-   detections.length+' image-based trail candidates, '+
+   detections.length+' image-based trail candidates (including '+(stats.faintCandidates||0)+
+   ' faint extra suggestions), '+
    st.aerialMappedTracks.length+' mapped forest tracks, '+
    st.aerialGaps.length+' possible gaps (not routable), and '+
    st.aerialRegions.length+' land-cover observations. '+
@@ -1321,6 +1425,7 @@ function wires(){
  $('gravelBtn').addEventListener('click',()=>toggleGravel());
  $('aerialBtn').addEventListener('click',scanAerial);
  $('aerialScanBtn').addEventListener('click',scanAerial);
+ $('inspectMissedTrailBtn').addEventListener('click',markInspectMode);
  $('forestScanBtn').addEventListener('click',scanForestTracks);
  $('paintTrailLink').addEventListener('click',e=>{
   const point=st.map?.getCenter();
