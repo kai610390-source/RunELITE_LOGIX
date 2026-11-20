@@ -1213,7 +1213,8 @@ async function geocode(event){
  event?.preventDefault();const q=$('placeInput').value.trim();if(q.length<2)return;
  $('placeForm').querySelector('button').disabled=true;
  try{
-  const url='https://nominatim.openstreetmap.org/search?'+new URLSearchParams({q,format:'jsonv2',limit:'1'});
+  const url=window.SurfaceStrideServerAvailable?'/api/geocode?q='+encodeURIComponent(q):
+     'https://nominatim.openstreetmap.org/search?'+new URLSearchParams({q,format:'jsonv2',limit:'1'});
   const r=await fetch(url);
   if(!r.ok)throw Error('Search service busy');
   const result=await r.json();

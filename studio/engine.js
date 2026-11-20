@@ -172,7 +172,7 @@ async function nearbyGravel(c,{bounds=null}={}){
  if(overlayCache.has(box))return overlayCache.get(box);
  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),17000);
  try{
-  const r=await fetch('https://api.openstreetmap.org/api/0.6/map?bbox='+box,{headers:{Accept:'application/json'},signal:ctrl.signal});
+  const r=await fetch((window.SurfaceStrideServerAvailable?'/api/osm':'https://api.openstreetmap.org/api/0.6/map')+'?bbox='+box,{headers:{Accept:'application/json'},signal:ctrl.signal});
   if(!r.ok)throw Error('OSM returned '+r.status);
   const text=await r.text();
   if(text.length>25000000)throw Error('Map extract is too large');

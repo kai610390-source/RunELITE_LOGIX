@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: surfacestride-trail-server
+    runtime: node
+    plan: free
+    repo: https://github.com/kai610390-source/RunELITE_LOGIX
+    branch: gh-pages
+    rootDir: .
+    buildCommand: echo "SurfaceStride uses Node built-ins; no npm install required"
+    startCommand: node server/server.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: USER_AGENT_CONTACT
+        sync: false
