@@ -1,0 +1,22 @@
+name: Trail server checks
+on:
+  push:
+    branches: [trails-live]
+  pull_request:
+    branches: [trails-live]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node server integration tests
+        run: node --test server/server.test.mjs
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          for file in server/server.mjs studio/*.js foot-router.js scout.js share-route.js surface-tags.js; do
+            node --check "$file"
+          done

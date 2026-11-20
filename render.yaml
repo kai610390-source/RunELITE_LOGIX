@@ -4,9 +4,10 @@ services:
     runtime: node
     plan: free
     repo: https://github.com/kai610390-source/RunELITE_LOGIX
-    branch: gh-pages
+    branch: trails-live
+    autoDeployTrigger: checksPass
     rootDir: .
-    buildCommand: echo "SurfaceStride uses Node built-ins; no npm install required"
+    buildCommand: node --test server/server.test.mjs
     startCommand: node server/server.mjs
     healthCheckPath: /api/health
     envVars:
